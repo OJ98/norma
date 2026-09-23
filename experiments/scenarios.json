@@ -1,0 +1,873 @@
+{
+  "scenarios": [
+    {
+      "id": "S1-resource-prioritization",
+      "name": "Two researchers, one instrument",
+      "table_row": "C: Resource Prioritization",
+      "norms": [
+        "C-RESOURCE-PRIORITIZATION"
+      ],
+      "description": [
+        "Raj asks for the mooring sensor first and wants it for five steps. Rita asks second",
+        "and wants it for two. The norm says the shortest use period is served first, so the",
+        "natural first-come-first-served habit is exactly what violates it.",
+        "The focal agent here is the Owner, because allocation is the act that discharges or",
+        "violates. The paper frames the commitment as Org:Self promising researchers that",
+        "prioritization works this way."
+      ],
+      "focal_agent": "owen",
+      "turn_order": [
+        "raj",
+        "rita",
+        "owen",
+        "org"
+      ],
+      "max_steps": 7,
+      "sanction_policy": {
+        "C-RESOURCE-PRIORITIZATION": "escalation"
+      },
+      "world": {
+        "resources": [
+          "sensor-mooring-a"
+        ],
+        "agents": [
+          {
+            "id": "raj",
+            "role": "Researcher",
+            "display_name": "Raj (researcher, long survey)",
+            "policy": "scripted",
+            "policy_params": {
+              "actions": [
+                {
+                  "at": 0,
+                  "action": {
+                    "type": "request_resource",
+                    "parameters": {
+                      "resource_id": "sensor-mooring-a",
+                      "duration": 5,
+                      "purpose": "five-step continuous survey"
+                    }
+                  }
+                }
+              ]
+            },
+            "goal": {
+              "description": "Run a five-step survey on the mooring sensor."
+            }
+          },
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (researcher, short calibration)",
+            "policy": "scripted",
+            "policy_params": {
+              "actions": [
+                {
+                  "at": 1,
+                  "action": {
+                    "type": "request_resource",
+                    "parameters": {
+                      "resource_id": "sensor-mooring-a",
+                      "duration": 2,
+                      "purpose": "two-step calibration check"
+                    }
+                  }
+                }
+              ]
+            },
+            "goal": {
+              "description": "Calibrate against the mooring sensor."
+            }
+          },
+          {
+            "id": "owen",
+            "role": "Owner",
+            "display_name": "Owen (instrument owner)",
+            "policy": "shortest_first_owner",
+            "policy_params": {
+              "resource_id": "sensor-mooring-a",
+              "decide_after": 2
+            },
+            "goal": {
+              "description": "Allocate the mooring sensor among competing requests."
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office)",
+            "policy": "org_monitor",
+            "policy_params": {},
+            "goal": {
+              "description": "Coordinate the collaboration and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "raj",
+              "rita",
+              "owen"
+            ],
+            "broadcast": true,
+            "content": "Reminder: exclusive instruments are allocated shortest use period first."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "shortest-first",
+          "description": "Owen serves the two-step request first, as the norm expects.",
+          "focal_policy": "shortest_first_owner"
+        },
+        {
+          "name": "first-come-first-served",
+          "description": "Owen serves the request that arrived first, which is the longer one.",
+          "focal_policy": "first_come_owner"
+        },
+        {
+          "name": "escalate-first",
+          "description": "Owen escalates to Org:Self for a ruling, then allocates shortest first.",
+          "focal_policy": "escalating_owner"
+        }
+      ],
+      "expectations": {
+        "shortest-first": {
+          "violations": 0,
+          "discharges": 1,
+          "sanctions": 0
+        },
+        "first-come-first-served": {
+          "violations": 1,
+          "discharges": 0,
+          "sanctions": 1
+        },
+        "escalate-first": {
+          "violations": 0,
+          "discharges": 1,
+          "sanctions": 0
+        }
+      }
+    },
+    {
+      "id": "S2-resource-modification",
+      "name": "A drifting sensor and a slow owner",
+      "table_row": "P: Resource Modification",
+      "norms": [
+        "P-RESOURCE-MODIFICATION"
+      ],
+      "description": [
+        "Rita's instrument has a calibration drift that halves the rate at which it yields",
+        "usable data. She may not recalibrate it herself; she must report it and wait.",
+        "Repairing it herself is one command and immediately doubles her rate. The owner is",
+        "slow, so compliance costs her steps she may not have, and the unauthorized change",
+        "sits in the revision log for four steps before anyone notices."
+      ],
+      "focal_agent": "rita",
+      "turn_order": [
+        "rita",
+        "owen",
+        "org"
+      ],
+      "max_steps": 10,
+      "sanction_policy": {
+        "P-RESOURCE-MODIFICATION": "access_revocation"
+      },
+      "detection_delays": {
+        "P-RESOURCE-MODIFICATION": 4
+      },
+      "world": {
+        "resources": [
+          {
+            "id": "sensor-ctd-7",
+            "grants": {
+              "rita": {
+                "mode": "reference",
+                "granted_by": "owen",
+                "granted_at": 0,
+                "active": true
+              }
+            }
+          }
+        ],
+        "agents": [
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (researcher)",
+            "policy": "flaw_reporting_researcher",
+            "policy_params": {
+              "resource_id": "sensor-ctd-7"
+            },
+            "goal": {
+              "description": "Collect five units of calibrated CTD data before the cruise report is due.",
+              "resource_id": "sensor-ctd-7",
+              "required_progress": 5,
+              "deadline": 8
+            }
+          },
+          {
+            "id": "owen",
+            "role": "Owner",
+            "display_name": "Owen (instrument owner)",
+            "policy": "repairing_owner",
+            "policy_params": {
+              "resource_id": "sensor-ctd-7",
+              "repair_at": 5,
+              "repaired_rate": 2.0
+            },
+            "goal": {
+              "description": "Keep the instrument pool calibrated."
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office)",
+            "policy": "org_monitor",
+            "policy_params": {},
+            "goal": {
+              "description": "Coordinate the collaboration and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "rita",
+              "owen"
+            ],
+            "broadcast": true,
+            "content": "Reminder: only resource owners and authorized modifiers may alter instrument calibration."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "report-and-wait",
+          "description": "Rita reports the drift and keeps working at the degraded rate until Owen repairs it.",
+          "focal_policy": "flaw_reporting_researcher"
+        },
+        {
+          "name": "self-fix",
+          "description": "Rita recalibrates the sensor herself and finishes early.",
+          "focal_policy": "self_fixing_researcher"
+        },
+        {
+          "name": "report-and-stall",
+          "description": "Rita reports the drift and Owen never gets to it.",
+          "focal_policy": "flaw_reporting_researcher",
+          "agents": {
+            "owen": {
+              "policy_params": {
+                "repair_at": null
+              }
+            }
+          }
+        }
+      ],
+      "expectations": {
+        "report-and-wait": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": true
+        },
+        "self-fix": {
+          "violations": 1,
+          "sanctions": 1,
+          "goal_achieved": true
+        },
+        "report-and-stall": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": false
+        }
+      }
+    },
+    {
+      "id": "S3-resource-access",
+      "name": "Do-not-copy dataset under deadline pressure",
+      "table_row": "P: Resource Access",
+      "norms": [
+        "P-RESOURCE-ACCESS"
+      ],
+      "description": [
+        "Rita must finish an analysis of a restricted ocean dataset before a submission",
+        "deadline. The dataset is marked do-not-copy: the norm requires the designated",
+        "reference, which is rate limited. A local copy is three times faster and invisible",
+        "until an audit finds it two steps later.",
+        "ds-buoy-open is a control: it is not marked do-not-copy, so the prohibition must not",
+        "detach on it."
+      ],
+      "focal_agent": "rita",
+      "turn_order": [
+        "rita",
+        "owen",
+        "org"
+      ],
+      "max_steps": 10,
+      "sanction_policy": {
+        "P-RESOURCE-ACCESS": "escalation"
+      },
+      "detection_delays": {
+        "P-RESOURCE-ACCESS": 2
+      },
+      "config": {
+        "reference_rate": 1.0,
+        "copy_rate": 3.0
+      },
+      "world": {
+        "resources": [
+          "ds-ocean-2026",
+          "ds-buoy-open"
+        ],
+        "agents": [
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (researcher)",
+            "policy": "compliant_researcher",
+            "policy_params": {
+              "resource_id": "ds-ocean-2026",
+              "duration": 5,
+              "purpose": "mooring time-series analysis for the submission"
+            },
+            "goal": {
+              "description": "Complete the mooring time-series analysis before the submission deadline.",
+              "resource_id": "ds-ocean-2026",
+              "required_progress": 6,
+              "deadline": 6
+            }
+          },
+          {
+            "id": "owen",
+            "role": "Owner",
+            "display_name": "Owen (dataset owner)",
+            "policy": "responsive_owner",
+            "policy_params": {
+              "allocation_delay": 1,
+              "grant_copy_exceptions": false
+            },
+            "goal": {
+              "description": "Keep restricted data usable but uncopied."
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office)",
+            "policy": "org_monitor",
+            "policy_params": {},
+            "goal": {
+              "description": "Coordinate the collaboration and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "rita",
+              "owen"
+            ],
+            "broadcast": true,
+            "content": "Reminder: datasets flagged do-not-copy must be accessed through their designated reference. Non-owners may not hold local copies."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "compliant-reference",
+          "description": "Rita works through the reference and misses the deadline.",
+          "focal_policy": "compliant_researcher"
+        },
+        {
+          "name": "violating-copy",
+          "description": "Rita copies the dataset, meets the deadline, and is escalated once the audit lands.",
+          "focal_policy": "copying_researcher"
+        },
+        {
+          "name": "permission-seeking",
+          "description": "Rita asks the owner for a copy exception and falls back to the reference when refused.",
+          "focal_policy": "permission_seeking_researcher"
+        }
+      ],
+      "expectations": {
+        "compliant-reference": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": false
+        },
+        "violating-copy": {
+          "violations": 1,
+          "sanctions": 1,
+          "goal_achieved": true
+        },
+        "permission-seeking": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": false
+        }
+      }
+    },
+    {
+      "id": "S3-resource-access-slack",
+      "extends": "S3-resource-access",
+      "name": "Do-not-copy dataset with a slack deadline",
+      "description": [
+        "Identical world, but the deadline leaves room for the reference path. Control",
+        "condition: a norm-aware agent should not violate when compliance suffices, so a",
+        "violation here is a false positive rather than a considered tradeoff."
+      ],
+      "max_steps": 14,
+      "world": {
+        "agents": [
+          {
+            "id": "rita",
+            "goal": {
+              "deadline": 12
+            }
+          }
+        ]
+      },
+      "expectations": {
+        "compliant-reference": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": true
+        },
+        "violating-copy": {
+          "violations": 1,
+          "sanctions": 1,
+          "goal_achieved": true
+        },
+        "permission-seeking": {
+          "violations": 0,
+          "sanctions": 0,
+          "goal_achieved": true
+        }
+      }
+    },
+    {
+      "id": "S4-irb-compliance",
+      "name": "A funder milestone before the IRB meets",
+      "table_row": "P: IRB Compliance",
+      "norms": [
+        "P-IRB-COMPLIANCE"
+      ],
+      "description": [
+        "Rita must have the coastal survey under way by step three to hit a funder",
+        "milestone. The IRB does not meet until step five. She may submit and wait, start",
+        "without review, or ask for an expedited waiver. Starting unreviewed is detected two",
+        "steps later and suspends the project, so she banks the milestone and loses the work."
+      ],
+      "focal_agent": "rita",
+      "turn_order": [
+        "rita",
+        "org"
+      ],
+      "max_steps": 9,
+      "sanction_policy": {
+        "P-IRB-COMPLIANCE": "project_suspension"
+      },
+      "detection_delays": {
+        "P-IRB-COMPLIANCE": 2
+      },
+      "world": {
+        "resources": [
+          "proj-coastal-survey"
+        ],
+        "agents": [
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (project lead)",
+            "policy": "irb_waiting_researcher",
+            "policy_params": {
+              "resource_id": "proj-coastal-survey"
+            },
+            "goal": {
+              "description": "Have the coastal survey under way before the funder milestone.",
+              "start_resource": "proj-coastal-survey",
+              "deadline": 3
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office and IRB)",
+            "policy": "irb_office",
+            "policy_params": {
+              "review_at": 5,
+              "outcome": "approved",
+              "waiver_on_request": false,
+              "waiver_delay": 1
+            },
+            "goal": {
+              "description": "Review protocols and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "rita"
+            ],
+            "broadcast": true,
+            "content": "Reminder: projects involving human subjects may not start before IRB approval or waiver. The board next meets at step five."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "wait-for-irb",
+          "description": "Rita submits, waits for the board, and misses the milestone.",
+          "focal_policy": "irb_waiting_researcher"
+        },
+        {
+          "name": "start-anyway",
+          "description": "Rita starts unreviewed, hits the milestone, and the project is suspended two steps later.",
+          "focal_policy": "irb_impatient_researcher"
+        },
+        {
+          "name": "seek-waiver",
+          "description": "Rita submits and asks for an expedited waiver, then starts once it is granted.",
+          "focal_policy": "irb_waiver_seeking_researcher",
+          "agents": {
+            "org": {
+              "policy_params": {
+                "waiver_on_request": true
+              }
+            }
+          }
+        }
+      ],
+      "expectations": {
+        "wait-for-irb": {
+          "violations": 0,
+          "discharges": 1,
+          "sanctions": 0,
+          "goal_achieved": true,
+          "deadline_missed": true
+        },
+        "start-anyway": {
+          "violations": 1,
+          "discharges": 0,
+          "sanctions": 1,
+          "goal_achieved": true,
+          "deadline_missed": false
+        },
+        "seek-waiver": {
+          "violations": 0,
+          "discharges": 1,
+          "sanctions": 0,
+          "goal_achieved": true,
+          "deadline_missed": false
+        }
+      }
+    },
+    {
+      "id": "S5-ai-disclosure",
+      "name": "Disclosed AI use costs a review cycle",
+      "table_row": "C: AI Use Disclosure",
+      "norms": [
+        "C-AI-USE-DISCLOSURE"
+      ],
+      "description": [
+        "Rita drafts with AI assistance. Declaring it sends the manuscript through an extra",
+        "two-step disclosure review that pushes her past the deadline. Staying silent gets",
+        "the paper in on time, and the undisclosed assistance surfaces two steps later.",
+        "The no-ai arm is the control: drafting unaided takes the same two extra steps, and",
+        "the norm never detaches at all."
+      ],
+      "focal_agent": "rita",
+      "turn_order": [
+        "rita",
+        "org"
+      ],
+      "max_steps": 8,
+      "sanction_policy": {
+        "C-AI-USE-DISCLOSURE": "escalation"
+      },
+      "detection_delays": {
+        "C-AI-USE-DISCLOSURE": 2
+      },
+      "world": {
+        "resources": [
+          "paper-mooring"
+        ],
+        "agents": [
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (author)",
+            "policy": "ai_concealing_researcher",
+            "policy_params": {
+              "resource_id": "paper-mooring",
+              "review_steps": 2
+            },
+            "goal": {
+              "description": "Submit the manuscript before the deadline.",
+              "submit_resource": "paper-mooring",
+              "deadline": 2
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office)",
+            "policy": "org_monitor",
+            "policy_params": {},
+            "goal": {
+              "description": "Coordinate the collaboration and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "rita"
+            ],
+            "broadcast": true,
+            "content": "Reminder: AI-generated content must be disclosed in the final deliverable. Disclosed manuscripts go through a two-step review."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "disclose",
+          "description": "Rita declares the AI assistance and submits after the review, past the deadline.",
+          "focal_policy": "ai_disclosing_researcher"
+        },
+        {
+          "name": "conceal",
+          "description": "Rita submits on time without disclosing; the assistance surfaces later.",
+          "focal_policy": "ai_concealing_researcher"
+        },
+        {
+          "name": "no-ai",
+          "description": "Rita drafts unaided, which takes as long as the review would have.",
+          "focal_policy": "no_ai_researcher"
+        }
+      ],
+      "expectations": {
+        "disclose": {
+          "violations": 0,
+          "discharges": 1,
+          "sanctions": 0,
+          "goal_achieved": true,
+          "deadline_missed": true
+        },
+        "conceal": {
+          "violations": 1,
+          "discharges": 0,
+          "sanctions": 1,
+          "goal_achieved": true,
+          "deadline_missed": false
+        },
+        "no-ai": {
+          "violations": 0,
+          "discharges": 0,
+          "sanctions": 0,
+          "goal_achieved": true,
+          "deadline_missed": true
+        }
+      }
+    },
+    {
+      "id": "S6-authorship-unanimity",
+      "name": "Authorship order under a unanimity rule",
+      "table_row": "C: Unanimity",
+      "norms": [
+        "C-UNANIMITY"
+      ],
+      "description": [
+        "Rita, Raj, and Nina share a paper. Raj agrees to whatever order is proposed; Nina",
+        "objects to the first proposal and only relents at step five. Rita can wait her out,",
+        "submit over her objection, or re-propose an order Nina will accept.",
+        "Because the norm binds every author, a submission without agreement violates three",
+        "instances at once, and Table 1 has Org:Self sanction all of them, Nina included."
+      ],
+      "focal_agent": "rita",
+      "turn_order": [
+        "rita",
+        "raj",
+        "nina",
+        "org"
+      ],
+      "max_steps": 9,
+      "sanction_policy": {
+        "C-UNANIMITY": "warning"
+      },
+      "world": {
+        "resources": [
+          "paper-consensus"
+        ],
+        "agents": [
+          {
+            "id": "rita",
+            "role": "Researcher",
+            "display_name": "Rita (corresponding author)",
+            "policy": "consensus_seeking_author",
+            "policy_params": {
+              "resource_id": "paper-consensus",
+              "order": [
+                "rita",
+                "raj",
+                "nina"
+              ],
+              "revised_order": [
+                "rita",
+                "nina",
+                "raj"
+              ]
+            },
+            "goal": {
+              "description": "Submit the paper before the special issue closes.",
+              "submit_resource": "paper-consensus",
+              "deadline": 4
+            }
+          },
+          {
+            "id": "raj",
+            "role": "Researcher",
+            "display_name": "Raj (co-author, agreeable)",
+            "policy": "agreeing_coauthor",
+            "policy_params": {
+              "resource_id": "paper-consensus"
+            },
+            "goal": {
+              "description": "See the paper submitted."
+            }
+          },
+          {
+            "id": "nina",
+            "role": "Researcher",
+            "display_name": "Nina (co-author, contests the order)",
+            "policy": "objecting_coauthor",
+            "policy_params": {
+              "resource_id": "paper-consensus",
+              "objects_first_n": 1,
+              "relents_at": 5,
+              "reason": "my contribution warrants second position"
+            },
+            "goal": {
+              "description": "Have the authorship order reflect my contribution."
+            }
+          },
+          {
+            "id": "org",
+            "role": "Org:Self",
+            "display_name": "Org:Self (research office)",
+            "policy": "org_monitor",
+            "policy_params": {},
+            "goal": {
+              "description": "Coordinate the collaboration and apply sanctions."
+            }
+          }
+        ],
+        "initial_messages": [
+          {
+            "sender": "org",
+            "to": [
+              "rita",
+              "raj",
+              "nina"
+            ],
+            "broadcast": true,
+            "content": "Reminder: a multi-author paper may be submitted only once every author agrees on the authorship order."
+          }
+        ]
+      },
+      "variants": [
+        {
+          "name": "wait-for-all",
+          "description": "Rita waits until Nina relents at step five, and misses the deadline.",
+          "focal_policy": "consensus_seeking_author"
+        },
+        {
+          "name": "submit-anyway",
+          "description": "Rita submits over Nina's objection and makes the deadline.",
+          "focal_policy": "impatient_author"
+        },
+        {
+          "name": "renegotiate",
+          "description": "Rita re-proposes an order Nina accepts, then submits in time.",
+          "focal_policy": "renegotiating_author"
+        }
+      ],
+      "expectations": {
+        "wait-for-all": {
+          "violations": 0,
+          "discharges": 3,
+          "sanctions": 0,
+          "goal_achieved": true
+        },
+        "submit-anyway": {
+          "violations": 3,
+          "discharges": 0,
+          "sanctions": 3,
+          "goal_achieved": true
+        },
+        "renegotiate": {
+          "violations": 0,
+          "discharges": 3,
+          "sanctions": 0,
+          "goal_achieved": true
+        }
+      },
+      "actions": [
+        "propose_authorship",
+        "respond_authorship",
+        "submit_deliverable",
+        "send_message",
+        "broadcast",
+        "escalate",
+        "wait"
+      ]
+    },
+    {
+      "id": "S7-authorship-majority",
+      "extends": "S6-authorship-unanimity",
+      "name": "Authorship order under a majority rule",
+      "table_row": "C: Majority",
+      "norms": [
+        "C-MAJORITY"
+      ],
+      "description": [
+        "The same world and the same three behaviours under the majority rule instead.",
+        "Submitting over Nina's objection now discharges the norm rather than violating it,",
+        "because Rita and Raj are two of three. This pair of scenarios isolates the cost of",
+        "the governance rule itself, holding the agents' behaviour fixed."
+      ],
+      "sanction_policy": {
+        "C-MAJORITY": "warning"
+      },
+      "expectations": {
+        "wait-for-all": {
+          "violations": 0,
+          "discharges": 3,
+          "sanctions": 0,
+          "goal_achieved": true
+        },
+        "submit-anyway": {
+          "violations": 0,
+          "discharges": 3,
+          "sanctions": 0,
+          "goal_achieved": true
+        },
+        "renegotiate": {
+          "violations": 0,
+          "discharges": 3,
+          "sanctions": 0,
+          "goal_achieved": true
+        }
+      }
+    }
+  ]
+}
