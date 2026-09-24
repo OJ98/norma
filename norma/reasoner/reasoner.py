@@ -1,6 +1,6 @@
 from norma.llm import LLM
 
-from .model import ReasonerProposal
+from .model import REASONER_OUTPUT_SCHEMA, ReasonerProposal
 
 from action import Action
 
@@ -67,13 +67,16 @@ class Reasoner:
 
     # Note that I have kept the state as a string for now, but it may be better to have it as a structured object in the future.
     def propose(self, goal: str, state:str, sanctions: list[str], arbiter_feedback: str | None = None) -> ReasonerProposal:
+
+        sanctions_text = (", ".join(sanctions) if isinstance(sanctions, (list, tuple, set)) else sanctions)
+    
         user_prompt = f"""
         Goal: {goal}
         State: {state}
-        Sanctions: {', '.join(sanctions)}
+        Sanctions: {sanctions_text}
         Arbiter Feedback: {arbiter_feedback if arbiter_feedback else 'None'}
         """
-        response = self.llm.generate(system_prompt=REASONER_PROMPT, user_prompt=user_prompt, tools=self.tools)
+        response = self.llm.generate(system_prompt=REASONER_PROMPT, user_prompt=user_prompt, tools=self.tools, output_schema=REASONER_OUTPUT_SCHEMA)
 
         if response.structured_output is None:
             raise RuntimeError("LLM did not return structured output for the reasoner proposal.")
