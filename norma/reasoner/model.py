@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from action import Action
+
+from substrate import Action
 
 REASONER_OUTPUT_SCHEMA = {
     "type": "object",

@@ -1,6 +1,17 @@
 from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SubstrateState
 import uuid
 
+_ACTION_TYPE_ALIASES = {
+    "send_message": "send",
+    "request_resource": "request",
+    "allocate_resource": "allocate",
+    "use_resource": "use",
+    "modify_resource": "modify",
+    "publish_resource": "publish",
+    "publish_project": "publish",
+}
+
+
 class Substrate:
 
     def __init__(self):
@@ -16,6 +27,14 @@ class Substrate:
         return self.state
 
     def execute(self, action: Action) -> ActionResult:
+        action_type = action.type
+        if isinstance(action_type, str):
+            normalized_type = _ACTION_TYPE_ALIASES.get(action_type, action_type)
+            try:
+                action_type = ActionType(normalized_type)
+            except ValueError:
+                action_type = normalized_type
+
         # Call the appropriate handler based on the action type
         handlers = {
             ActionType.REQUEST: self.handle_request,
@@ -26,7 +45,7 @@ class Substrate:
             ActionType.PUBLISH: self.handle_publish
         }
 
-        handler = handlers.get(action.type)
+        handler = handlers.get(action_type)
 
         if handler is None:
             return ActionResult(success=False, message=f"Invalid action type: {action.type}")
