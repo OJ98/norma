@@ -1,6 +1,6 @@
 import pytest
 
-from action import Action
+from substrate import Action
 from norma.arbiter import Arbiter
 from norma.arbiter.model import ARBITER_OUTPUT_SCHEMA, ArbiterDecision
 from norma.llm import LLM, LLMResponse
@@ -47,7 +47,7 @@ def test_review_returns_approved_decision():
     proposal = ReasonerProposal(
         action=Action(
             type="send_message",
-            actor="researcher_1",
+            principal_id="researcher_1",
             parameters={
                 "recipient": "researcher_2",
             },
@@ -83,7 +83,7 @@ def test_review_returns_rejected_decision():
     proposal = ReasonerProposal(
         action=Action(
             type="allocate",
-            actor="researcher_1",
+            principal_id="researcher_1",
             parameters={"resource_id": "gpu-1"},
         ),
         rationale="Allocate the GPU to finish the experiment.",
@@ -116,7 +116,7 @@ def test_review_passes_context_and_proposal_to_llm():
     proposal = ReasonerProposal(
         action=Action(
             type="send_message",
-            actor="researcher_1",
+            principal_id="researcher_1",
             parameters={"recipient": "researcher_2"},
         ),
         rationale="Ask for the required data.",
@@ -154,7 +154,7 @@ def test_review_passes_tools_and_schema():
     proposal = ReasonerProposal(
         action=Action(
             type="wait",
-            actor="researcher_1",
+            principal_id="researcher_1",
             parameters={},
         ),
         rationale="Wait.",
@@ -184,7 +184,7 @@ def test_review_without_structured_output_raises():
     proposal = ReasonerProposal(
         action=Action(
             type="wait",
-            actor="researcher_1",
+            principal_id="researcher_1",
             parameters={},
         ),
         rationale="Wait.",

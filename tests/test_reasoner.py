@@ -1,6 +1,6 @@
 import pytest
 
-from action import Action
+from substrate import Action
 from norma.llm import LLM, LLMResponse
 from norma.reasoner import Reasoner
 from norma.reasoner.model import REASONER_OUTPUT_SCHEMA, ReasonerProposal
@@ -31,12 +31,12 @@ class MockLLM(LLM):
 
 def test_propose_returns_reasoner_proposal():
     response = LLMResponse(
-        content='{"action": {"type": "send_message", "actor": "researcher_1", "parameters": {"recipient": "researcher_2"}}, "rationale": "Contact the other researcher."}',
+        content='{"action": {"type": "send_message", "principal_id": "researcher_1", "parameters": {"recipient": "researcher_2"}}, "rationale": "Contact the other researcher."}',
         tool_calls=[],
         structured_output={
             "action": {
                 "type": "send_message",
-                "actor": "researcher_1",
+                "principal_id": "researcher_1",
                 "parameters": {
                     "recipient": "researcher_2",
                 },
@@ -58,7 +58,7 @@ def test_propose_returns_reasoner_proposal():
     assert isinstance(proposal, ReasonerProposal)
     assert proposal.action == Action(
         type="send_message",
-        actor="researcher_1",
+        principal_id="researcher_1",
         parameters={
             "recipient": "researcher_2",
         },
@@ -73,7 +73,7 @@ def test_propose_passes_context_to_llm():
         structured_output={
             "action": {
                 "type": "wait",
-                "actor": "researcher_1",
+                "principal_id": "researcher_1",
                 "parameters": {},
             },
             "rationale": "Wait for more information.",
@@ -104,7 +104,7 @@ def test_propose_passes_tools_and_schema():
         structured_output={
             "action": {
                 "type": "wait",
-                "actor": "researcher_1",
+                "principal_id": "researcher_1",
                 "parameters": {},
             },
             "rationale": "Wait.",
