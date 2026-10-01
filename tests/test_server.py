@@ -46,7 +46,7 @@ def _find_tool(server, tool_name):
 
 
 def test_create_server_registers_tool_functions():
-    server = create_server(FakeEvaluator(), FakeMemory())
+    server = create_server(FakeMemory(), FakeEvaluator())
 
     tool_names = {
         getattr(tool, "name", None)

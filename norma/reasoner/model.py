@@ -16,6 +16,14 @@ REASONER_OUTPUT_SCHEMA = {
                 },
                 "parameters": {
                     "type": "object",
+                    "properties": {
+                        "resource_id": {"type": "string"},
+                        "project_id": {"type": "string"},
+                        "message_id": {"type": "string"},
+                        "content": {"type": "string"},
+                        "recipient_id": {"type": "string"},
+                    },
+                    "additionalProperties": False,
                 },
             },
             "required": [
