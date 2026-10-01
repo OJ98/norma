@@ -15,6 +15,8 @@ class FakeEvaluator:
             action=action,
             next_state=SimpleNamespace(dict=lambda: {"state": "next"}),
             evaluations=[SimpleNamespace(instance_id="instance-1", status=NormStatus.DISCHARGED)],
+            violations=[SimpleNamespace(norm_id="request_before_use")],
+            sanctions=[SimpleNamespace(sanction="warning")],
         )
 
 
@@ -79,3 +81,5 @@ def test_create_server_registers_tool_functions():
     assert result["action"]["principal_id"] == "p1"
     assert result["next_state"] == {"state": "next"}
     assert result["evaluations"][0]["status"] == NormStatus.DISCHARGED.value
+    assert "violations" not in result
+    assert "sanctions" not in result

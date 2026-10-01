@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from enum import Enum
 
 class ResourceType(Enum):
@@ -13,6 +14,10 @@ class ActionType(Enum):
     ALLOCATE = "allocate"
     SEND = "send"
     PUBLISH = "publish"
+
+
+class SanctionType(Enum):
+    WARNING = "warning"
 
 @dataclass
 class Action:
@@ -51,6 +56,24 @@ class ResourceRequest:
     resource_id: str
     requester_id: str
 
+
+@dataclass
+class SanctionDecision:
+    violation_id: int
+    subject: str
+    sanction: SanctionType
+    object: str | None
+    reason: str
+    timestamp: int
+
+
+@dataclass
+class ViolationEvent:
+    violation_id: int
+    subject: str
+    object: str | None
+    norm_id: str
+
 @dataclass
 class SubstrateState:
     principals: list[Principal]
@@ -58,6 +81,18 @@ class SubstrateState:
     projects: list[Project]
     messages: list[Message]
     resource_requests: list[ResourceRequest]
+    sanctions: list[SanctionDecision]
+
+
+def serialize_state(state: SubstrateState | str) -> str:
+    if isinstance(state, str):
+        return state
+
+    return json.dumps(
+        asdict(state),
+        default=lambda value: value.value if isinstance(value, Enum) else str(value),
+        sort_keys=True,
+    )
 
 @dataclass
 class ActionResult:

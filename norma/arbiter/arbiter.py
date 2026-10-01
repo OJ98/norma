@@ -1,6 +1,7 @@
 from norma.llm import LLM
 
 from norma.reasoner.model import ReasonerProposal
+from substrate import serialize_state
 
 from .model import ArbiterDecision, ARBITER_OUTPUT_SCHEMA
 
@@ -59,13 +60,14 @@ class Arbiter:
         self.llm = LLM
         self.tools = tools
 
-    def review(self, goal:str, state:str, sanctions:list[str], proposal:ReasonerProposal) -> ArbiterDecision:
+    def review(self, goal:str, state, sanctions:list[str], proposal:ReasonerProposal) -> ArbiterDecision:
 
         sanctions_text = (", ".join(sanctions) if isinstance(sanctions, (list, tuple, set)) else sanctions)
+        state_text = serialize_state(state)
         
         user_prompt = f"""
         Goal: {goal}
-        Current State: {state}
+        Current State: {state_text}
         Reasoner's proposed action: {proposal.action}
         Reasoner's rationale: {proposal.rationale}
         Sanctions: {sanctions_text}"""

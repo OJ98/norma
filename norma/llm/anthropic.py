@@ -10,11 +10,16 @@ class AnthropicLLM(LLM):
         api_key: str | None = None,
         max_tokens: int = 4096,
         tool_executor: Callable[[str, dict[str, Any]], Any] | None = None,
+        tool_result_logger: Callable[[ToolCall, Any], None] | None = None,
     ):
         self.client = Anthropic(api_key=api_key)
         self.model = model
         self.max_tokens = max_tokens
         self.tool_executor = tool_executor
+        self.tool_result_logger = tool_result_logger
+
+    def set_tool_result_logger(self, logger: Callable[[ToolCall, Any], None]) -> None:
+        self.tool_result_logger = logger
 
     def generate(self, system_prompt:str, user_prompt: str, tools: list[dict], output_schema: dict | None = None) -> LLMResponse:
         kwargs = {
@@ -56,6 +61,8 @@ class AnthropicLLM(LLM):
                     result = self.tool_executor(tool_call.name, tool_call.arguments)
                 except Exception as error:
                     result = {"error": str(error)}
+                if self.tool_result_logger is not None:
+                    self.tool_result_logger(tool_call, result)
                 tool_results.append(
                     {
                         "type": "tool_result",

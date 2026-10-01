@@ -1,4 +1,4 @@
-from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SubstrateState
+from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SanctionDecision, SubstrateState
 import uuid
 from copy import deepcopy
 
@@ -21,7 +21,8 @@ class Substrate:
             resources=[],
             projects=[],
             messages=[],
-            resource_requests=[]
+            resource_requests=[],
+            sanctions=[],
         )
 
     def get_state(self) -> SubstrateState:
@@ -68,6 +69,13 @@ class Substrate:
             return handler(action)
         except Exception as e:
             return ActionResult(success=False, message=str(e))
+
+    def apply_sanction(self, decision: SanctionDecision) -> ActionResult:
+        self.state.sanctions.append(decision)
+        return ActionResult(
+            success=True,
+            message=f"Sanction {decision.sanction.value} applied to {decision.subject}",
+        )
 
 
     # Handler for the "request" action type

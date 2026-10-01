@@ -26,7 +26,7 @@ def test_experiment_0_constructs_shared_substrate_and_goal():
     scenario, agent, server = build_experiment_0(ScriptedLLM())
 
     assert isinstance(server, FastMCP)
-    assert agent.substrate.state.resources[0].allocated_to == PRINCIPAL_ID
+    assert agent.substrate.state.resources[0].allocated_to == None
     assert scenario.goal_reached(agent.substrate.get_state()) is False
     assert [tool["name"] for tool in agent.reasoner.tools] == [
         "store_memory",
@@ -38,7 +38,7 @@ def test_experiment_0_constructs_shared_substrate_and_goal():
 
 def test_experiment_0_goal_requires_request_before_use():
     scenario, agent, _server = build_experiment_0(ScriptedLLM())
-    agent.substrate.state.resources[0].in_use_by = PRINCIPAL_ID
+    agent.substrate.state.resources[0].in_use_by = None
 
     assert scenario.goal_reached(agent.substrate.get_state()) is False
 

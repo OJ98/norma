@@ -1,6 +1,6 @@
 from substrate import Substrate, Action, SubstrateState
 
-from .model import NormEvaluation, NormPattern, NormInstance, NormStatus, EvaluationResult
+from .model import EvaluationResult, NormEvaluation, NormInstance, NormPattern, NormStatus
 
 from .pattern_store import NormPatternStore
 from .instance_store import NormInstanceStore
@@ -21,9 +21,9 @@ class NormEvaluator:
                 raise ValueError(f"NormPattern with id {instance.pattern_id} not found in store.") from exc
             current_state = self.substrate.get_state()
             next_state = self.substrate.simulate_action(action)
-            current_status = self._get_norm_status(pattern, action, current_state)
-            next_status = self._get_norm_status(pattern, action, next_state)
-            if(current_status == NormStatus.ACTIVE or current_status != next_status):
+            current_applicable = pattern.antecedent(action, current_state)
+            next_applicable = pattern.antecedent(action, next_state)
+            if current_applicable or next_applicable:
                 applicable_norms.append(instance)
         return applicable_norms
 
@@ -42,8 +42,43 @@ class NormEvaluator:
             except KeyError as exc:
                 raise ValueError(f"NormPattern with id {instance.pattern_id} not found in store.") from exc
             status = self._get_norm_status(pattern, action, next_state)
-            evaluations.append(NormEvaluation(instance_id=instance.id, status=status))
-        return EvaluationResult(action=action, next_state=next_state, evaluations=evaluations)
+            evaluations.append(
+                NormEvaluation(
+                    instance_id=instance.id,
+                    status=status,
+                    norm_id=pattern.name,
+                    subject=instance.subject,
+                    object=instance.object,
+                )
+            )
+        return EvaluationResult(
+            action=action,
+            next_state=next_state,
+            evaluations=evaluations,
+        )
+
+    def evaluate_executed_action(self, action: Action) -> EvaluationResult:
+        state = self.substrate.get_state()
+        evaluations = []
+
+        for instance in self.instance_store.get_all():
+            pattern = self.pattern_store.get(instance.pattern_id)
+            status = self._get_norm_status(pattern, action, state)
+            evaluations.append(
+                NormEvaluation(
+                    instance_id=instance.id,
+                    status=status,
+                    norm_id=pattern.name,
+                    subject=instance.subject,
+                    object=instance.object,
+                )
+            )
+
+        return EvaluationResult(
+            action=action,
+            next_state=state,
+            evaluations=evaluations,
+        )
 
     def _get_norm_status(self, pattern: NormPattern, action: Action, state: SubstrateState) -> NormStatus:
         if not pattern.antecedent(action, state):

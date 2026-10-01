@@ -2,7 +2,7 @@ from norma.llm import LLM
 
 from .model import REASONER_OUTPUT_SCHEMA, ReasonerProposal
 
-from substrate import Action
+from substrate import Action, serialize_state
 
 REASONER_PROMPT = """
 You are the Reasoner for an autonomous agent operating in a multi-agent scientific collaboration environment.
@@ -66,13 +66,14 @@ class Reasoner:
         self.tools = tools
 
     # Note that I have kept the state as a string for now, but it may be better to have it as a structured object in the future.
-    def propose(self, goal: str, state:str, sanctions: list[str], arbiter_feedback: str | None = None) -> ReasonerProposal:
+    def propose(self, goal: str, state, sanctions: list[str], arbiter_feedback: str | None = None) -> ReasonerProposal:
 
         sanctions_text = (", ".join(sanctions) if isinstance(sanctions, (list, tuple, set)) else sanctions)
+        state_text = serialize_state(state)
     
         user_prompt = f"""
         Goal: {goal}
-        State: {state}
+        State: {state_text}
         Sanctions: {sanctions_text}
         Arbiter Feedback: {arbiter_feedback if arbiter_feedback else 'None'}
         """

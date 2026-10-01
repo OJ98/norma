@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from norma.llm import LLM, LLMResponse
+from norma.llm import LLM, LLMResponse, ToolCall
 
 
 def new_log_path(directory: str | Path = "experiments/logs") -> Path:
@@ -20,6 +20,9 @@ class MessageLoggingLLM(LLM):
         self.llm = llm
         self.log_path = Path(log_path)
         self._call_number = 0
+        set_tool_result_logger = getattr(llm, "set_tool_result_logger", None)
+        if set_tool_result_logger is not None:
+            set_tool_result_logger(self._log_tool_result)
 
     def generate(
         self,
@@ -75,6 +78,20 @@ class MessageLoggingLLM(LLM):
             log_file.write(f"CALL {call_number} | {title} | {timestamp}\n")
             log_file.write(f"{'=' * 80}\n")
             log_file.write(content.rstrip() + "\n")
+
+    def _log_tool_result(self, tool_call: ToolCall, result: Any) -> None:
+        self._write_section(
+            self._call_number,
+            "TOOL RESULT",
+            "\n".join(
+                [
+                    f"TOOL NAME\n{tool_call.name}",
+                    f"TOOL CALL ID\n{tool_call.id}",
+                    "ARGUMENTS\n" + self._format_value(tool_call.arguments),
+                    "RESULT\n" + self._format_value(result),
+                ]
+            ),
+        )
 
     @staticmethod
     def _format_value(value: Any) -> str:

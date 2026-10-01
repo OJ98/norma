@@ -35,6 +35,9 @@ class NormInstance:
 class NormEvaluation:
     instance_id: int
     status: NormStatus
+    norm_id: str | None = None
+    subject: str | None = None
+    object: str | None = None
 
 @dataclass
 class EvaluationResult:
