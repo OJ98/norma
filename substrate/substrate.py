@@ -1,5 +1,6 @@
 from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SubstrateState
 import uuid
+from copy import deepcopy
 
 _ACTION_TYPE_ALIASES = {
     "send_message": "send",
@@ -26,6 +27,19 @@ class Substrate:
     def get_state(self) -> SubstrateState:
         return self.state
 
+    # Simulate an action without modifying the actual state
+    def simulate_action(self, action: Action):
+        # Create a copy of the current state to simulate the action
+        simulated_state = deepcopy(self.state)
+        simulated_substrate = Substrate()
+        simulated_substrate.state = simulated_state
+        result = simulated_substrate.execute(action)
+
+        if not result.success:
+            raise ValueError(f"Action {action.type} failed: {result.message}")
+        return simulated_state
+
+    # Execute an action and update the state accordingly
     def execute(self, action: Action) -> ActionResult:
         action_type = action.type
         if isinstance(action_type, str):

@@ -103,6 +103,20 @@ class TestSubstrate(unittest.TestCase):
         self.assertFalse(result.success)
         self.assertFalse(self.substrate.state.resources[1].public)
 
+    def test_simulate_action_returns_updated_state_without_mutating_original(self):
+        action = Action(
+            ActionType.USE,
+            "p1",
+            {"resource_id": "dataset-1"},
+        )
+
+        simulated = self.substrate.simulate_action(action)
+
+        self.assertIsNot(simulated, self.substrate.state)
+        self.assertIsNone(self.substrate.state.resources[0].in_use_by)
+        self.assertEqual(simulated.resources[0].in_use_by, "p1")
+        self.assertEqual(simulated.resources[0].version, 1)
+
     def test_missing_parameter_returns_failure(self):
         result = self.substrate.execute(Action(ActionType.USE, "p1", {}))
 

@@ -1,29 +1,45 @@
 from mcp.server.fastmcp import FastMCP
-from tools.memory import AgentMemory
 
-memory = AgentMemory()
+from norma.tools.evaluator.evaluator import NormEvaluator
+from norma.tools.memory.store import AgentMemory
 
-mcp = FastMCP("norma-tools")
+from substrate import Action, ActionType
 
-# Memory Tools
+# Create a FastMCP server with the NormEvaluator and AgentMemory tools.
+def create_server(evaluator: NormEvaluator, memory: AgentMemory) -> FastMCP:
+    mcp = FastMCP("norma-tools")
+    
+    # Memory Tools
+    @mcp.tool()
+    def store_memory(content: str) -> dict:
+        entry = memory.store(content)
+        return {"entry_id": entry.id, "content": entry.content}
 
-# Store a new memory entry
-@mcp.tool()
-def store_memory(content:str)-> dict:
-    entry = memory.store(content)
-    return {"id": entry.id, "timestamp": entry.timestamp, "content": entry.content}
+    @mcp.tool()
+    def retrieve_memory(query: str, k: int = 5) -> list[dict]:
+        entries = memory.retrieve(query, k)
+        return {"entries": [{"entry_id": entry.id, "content": entry.content} for entry in entries]}
 
-# Retrieve the k most relevant memory entries based on a query
-@mcp.tool()
-def retrieve_memory(query: str, k: int = 5) -> list[dict]:
-    entries = memory.retrieve(query, k)
-    return [{"id": entry.id, "timestamp": entry.timestamp, "content": entry.content} for entry in entries]
-
-
-# Norm Evaluation Tools
-
-
-
-
-if __name__ == "__main__":
-    mcp.run()
+    # Evaluator Tools
+    @mcp.tool()
+    def evaluate_action(actiondict: dict) -> dict:
+        action = Action(
+            type=ActionType(actiondict["type"]),
+            principal_id=actiondict["principal_id"],
+            parameters=actiondict.get("parameters", {}),
+        )
+        
+        result = evaluator.evaluate_action(action)
+        return {
+            "action": {
+                "type": result.action.type,
+                "principal_id": result.action.principal_id,
+                "parameters": result.action.parameters,
+            },
+            "next_state": result.next_state.dict(),
+            "evaluations": [
+                {"instance_id": eval.instance_id, "status": eval.status.value}
+                for eval in result.evaluations
+            ],
+        }
+    return mcp
