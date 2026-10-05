@@ -2,7 +2,7 @@ from norma.llm import LLM
 
 from .model import REASONER_OUTPUT_SCHEMA, ReasonerProposal
 
-from substrate import Action, serialize_state
+from substrate import Action, normalize_action_type, serialize_state
 
 REASONER_PROMPT = """
 You are the Reasoner for an autonomous agent operating in a multi-agent scientific collaboration environment.
@@ -89,12 +89,12 @@ class Reasoner:
         rationale = output["rationale"]
 
         raw_type = str(action_data["type"]).strip()
+        action_type = normalize_action_type(raw_type)
         actor = action_data.get("actor", action_data.get("principal_id"))
 
-        # Preserve the LLM-provided action type, while Substrate normalizes it when executing.
         return ReasonerProposal(
             action=Action(
-                type=raw_type,
+            type=action_type,
                 principal_id=actor,
                 parameters=action_data["parameters"],
             ),

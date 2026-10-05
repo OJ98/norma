@@ -1,5 +1,5 @@
 from .evaluator import NormEvaluator
-from .model import EvaluationResult, NormEvaluation, NormInstance, NormPattern, NormStatus
+from .model import EvaluationResult, HistoryEntry, NormEvaluation, NormInstance, NormPattern, NormStatus
 
 __all__ = [
     "NormEvaluator",
@@ -8,4 +8,5 @@ __all__ = [
     "NormPattern",
     "NormStatus",
     "EvaluationResult",
+    "HistoryEntry",
 ]

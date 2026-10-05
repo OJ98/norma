@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from norma.tools.evaluator.evaluator import NormEvaluator
 from norma.tools.memory.store import AgentMemory
 
-from substrate import Action, ActionType
+from substrate import Action, normalize_action_type
 
 
 def _state_to_dict(state) -> dict:
@@ -32,11 +32,7 @@ def create_server(memory: AgentMemory, evaluator: NormEvaluator) -> FastMCP:
     # Evaluator Tools
     @mcp.tool()
     def evaluate_action(actiondict: dict) -> dict:
-        action_type = actiondict["type"]
-        try:
-            action_type = ActionType(action_type)
-        except ValueError:
-            pass
+        action_type = normalize_action_type(actiondict["type"])
         action = Action(
             type=action_type,
             principal_id=actiondict["principal_id"],

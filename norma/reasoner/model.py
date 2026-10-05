@@ -18,6 +18,7 @@ REASONER_OUTPUT_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "resource_id": {"type": "string"},
+                        "principal_id": {"type": "string"},
                         "project_id": {"type": "string"},
                         "message_id": {"type": "string"},
                         "content": {"type": "string"},

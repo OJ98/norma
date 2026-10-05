@@ -54,6 +54,36 @@ class TestSubstrate(unittest.TestCase):
         self.assertEqual(resource.in_use_by, "p1")
         self.assertEqual(resource.version, 2)
 
+    def test_allocate_uses_target_principal_parameter(self):
+        result = self.substrate.execute(
+            Action(
+                ActionType.ALLOCATE,
+                "p1",
+                {"resource_id": "compute-1", "principal_id": "p2"},
+            )
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(self.substrate.state.resources[1].allocated_to, "p2")
+
+    def test_wait_does_not_change_resource_state(self):
+        before = self.substrate.state.resources[0]
+
+        result = self.substrate.execute(Action(ActionType.WAIT, "p1", {}))
+
+        self.assertTrue(result.success)
+        self.assertEqual(self.substrate.state.resources[0], before)
+
+    def test_release_clears_current_use(self):
+        self.substrate.state.resources[0].in_use_by = "p1"
+
+        result = self.substrate.execute(
+            Action(ActionType.RELEASE, "p1", {"resource_id": "dataset-1"})
+        )
+
+        self.assertTrue(result.success)
+        self.assertIsNone(self.substrate.state.resources[0].in_use_by)
+
     def test_modify_requires_current_user(self):
         self.substrate.state.resources[0].in_use_by = "p2"
 

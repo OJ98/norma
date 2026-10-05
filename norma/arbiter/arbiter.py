@@ -29,9 +29,6 @@ You have access to two tools:
 The organization is responsible for determining the sanctions that can be applied in case of norm violations.
 The reasoner knows the set of possible sanctions that the organization may impose when a violation is detected. You may consider these possible sanctions when deliberating.
 
-This is the set of possible sanctions:
-[List of potential Sanctions]
-    
 When reviewing a proposal, consider:
 - Whether the action advances the assigned goal.
 - Which norms apply to the action.

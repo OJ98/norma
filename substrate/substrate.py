@@ -1,17 +1,6 @@
-from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SanctionDecision, SubstrateState
+from .model import Action, ActionResult, ActionType, Principal, Resource, ResourceType, Project, Message, ResourceRequest, SanctionDecision, SubstrateState, normalize_action_type
 import uuid
 from copy import deepcopy
-
-_ACTION_TYPE_ALIASES = {
-    "send_message": "send",
-    "request_resource": "request",
-    "allocate_resource": "allocate",
-    "use_resource": "use",
-    "modify_resource": "modify",
-    "publish_resource": "publish",
-    "publish_project": "publish",
-}
-
 
 class Substrate:
 
@@ -42,13 +31,7 @@ class Substrate:
 
     # Execute an action and update the state accordingly
     def execute(self, action: Action) -> ActionResult:
-        action_type = action.type
-        if isinstance(action_type, str):
-            normalized_type = _ACTION_TYPE_ALIASES.get(action_type, action_type)
-            try:
-                action_type = ActionType(normalized_type)
-            except ValueError:
-                action_type = normalized_type
+        action_type = normalize_action_type(action.type)
 
         # Call the appropriate handler based on the action type
         handlers = {
@@ -57,7 +40,9 @@ class Substrate:
             ActionType.MODIFY: self.handle_modify,
             ActionType.ALLOCATE: self.handle_allocate,
             ActionType.SEND: self.handle_send,
-            ActionType.PUBLISH: self.handle_publish
+            ActionType.PUBLISH: self.handle_publish,
+            ActionType.WAIT: self.handle_wait,
+            ActionType.RELEASE: self.handle_release,
         }
 
         handler = handlers.get(action_type)
@@ -123,6 +108,21 @@ class Substrate:
 
         resource.in_use_by = principal.id
         return ActionResult(success=True, message=f"Resource {resource_id} is now in use by principal {principal.id}")
+
+    def handle_wait(self, action: Action) -> ActionResult:
+        self._get_principal(action.principal_id)
+        return ActionResult(success=True, message=f"Principal {action.principal_id} is waiting")
+
+    def handle_release(self, action: Action) -> ActionResult:
+        resource_id = self._require_parameter(action, "resource_id")
+        resource = self._get_resource(resource_id)
+        principal = self._get_principal(action.principal_id)
+
+        if resource.in_use_by != principal.id:
+            return ActionResult(success=False, message=f"Resource {resource_id} is not in use by principal {principal.id}")
+
+        resource.in_use_by = None
+        return ActionResult(success=True, message=f"Resource {resource_id} released by principal {principal.id}")
 
     # Handler for the "modify" action type
     def handle_modify(self, action: Action) -> ActionResult:

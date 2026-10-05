@@ -78,7 +78,7 @@ def test_norma_agent_step_approves_and_executes_action():
         sanctions=["warning"],
     )
 
-    assert str(result.proposal.action.type) == "send"
+    assert result.proposal.action.type == ActionType.SEND
     assert result.proposal.action.parameters["recipient_id"] == "researcher_2"
     assert result.decision.approved is True
     assert result.execution_result is not None

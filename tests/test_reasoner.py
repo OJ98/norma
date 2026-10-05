@@ -1,6 +1,6 @@
 import pytest
 
-from substrate import Action
+from substrate import Action, ActionType
 from norma.llm import LLM, LLMResponse
 from norma.reasoner import Reasoner
 from norma.reasoner.model import REASONER_OUTPUT_SCHEMA, ReasonerProposal
@@ -57,7 +57,7 @@ def test_propose_returns_reasoner_proposal():
 
     assert isinstance(proposal, ReasonerProposal)
     assert proposal.action == Action(
-        type="send_message",
+        type=ActionType.SEND,
         principal_id="researcher_1",
         parameters={
             "recipient": "researcher_2",
@@ -95,6 +95,29 @@ def test_propose_passes_context_to_llm():
     assert "The experiment is currently running." in llm.user_prompt
     assert "Warning" in llm.user_prompt
     assert "The previous action was rejected." in llm.user_prompt
+
+
+def test_propose_normalizes_use_resource_to_use():
+    response = LLMResponse(
+        content=None,
+        tool_calls=[],
+        structured_output={
+            "action": {
+                "type": "use_resource",
+                "actor": "researcher_1",
+                "parameters": {"resource_id": "gpu-1"},
+            },
+            "rationale": "Use the resource.",
+        },
+    )
+
+    proposal = Reasoner(MockLLM(response), []).propose(
+        goal="Use the GPU",
+        state="The GPU is available.",
+        sanctions=[],
+    )
+
+    assert proposal.action.type == ActionType.USE
 
 
 def test_propose_passes_tools_and_schema():

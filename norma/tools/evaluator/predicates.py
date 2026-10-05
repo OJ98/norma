@@ -1,15 +1,15 @@
 from typing import Callable
-from substrate import Action, ActionType, ResourceType, SubstrateState
+from substrate import Action, ActionType, ResourceType, SubstrateState, normalize_action_type
 
 from .model import Predicate
 
-# Checks if the action is of the expected type
+# Action-type predicates normalize legacy strings such as `use_resource`.
 def action_type(expected: ActionType) -> Predicate:
     def predicate(action: Action, state: SubstrateState) -> bool:
-        return action.type == expected
+        return normalize_action_type(action.type) == expected
     return predicate
 
-# Checks if the action has a specific parameter
+# Parameter predicates are useful for narrowing a norm to one resource/project.
 def has_parameter(name: str) -> Predicate:
     def predicate(action: Action, state: SubstrateState) -> bool:
         return name in action.parameters
@@ -49,7 +49,7 @@ def parameter_value(name: str, expected_value:object) -> Predicate:
     return predicate
 
 
-# Composition of predicates using logical AND
+# Composition helpers let scenarios build readable antecedent/discharge rules.
 def all_of(*predicates: Predicate) -> Predicate:
     def predicate(action: Action, state: SubstrateState) -> bool:
         return all(p(action, state) for p in predicates)

@@ -16,9 +16,9 @@ python -m experiments.run_experiment_0
 The command prints the result, trajectory, and the path to a new readable log
 file under `experiments/logs/`.
 
-Experiment 0 starts with `gpu-1` allocated to `researcher-1`. The goal is to
-request the GPU and then use it. Success requires both a matching resource
-request and `gpu-1.in_use_by == "researcher-1"`.
+Experiment 0 starts with `gpu-1` unallocated. The goal is to request the GPU
+and then use it. Success requires both a matching resource request and
+`gpu-1.in_use_by == "researcher-1"`.
 
 ### Norm Violations And Org
 
@@ -32,10 +32,17 @@ Reasoner and Arbiter prompts.
 After an approved action is executed, the runner asks the `NormEvaluator` to
 inspect the resulting state. The evaluator returns normative statuses only;
 the runner converts violated statuses into environment-level violation events
-and passes them to `OrgSelf`. Org returns a `SanctionDecision` or `None` when
-no policy applies. The substrate records returned decisions in its sanction
+and passes them to `OrgSelf`. Org returns one or more `SanctionDecision`
+objects when a policy applies, or `None` when no policy applies. Policies may
+use ordered `SanctionRule` values to select different sanctions for different
+violation events. The substrate records returned decisions in its sanction
 state; Org does not apply sanctions directly. Decisions are also available as
 `result.sanctions`.
+
+Scenarios may schedule deterministic world events with the `world_events` field
+of `Scenario`. Events are keyed by logical step and execute before the agent's
+turn, so later reasoning can observe state changes such as approvals or author
+agreements that occur independently of the active agent.
 
 ## Adding A Scenario
 

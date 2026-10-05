@@ -10,6 +10,14 @@ from norma.reasoner import Reasoner
 from norma.tools.evaluator import NormEvaluator
 from norma.tools.evaluator.instance_store import NormInstanceStore
 from norma.tools.evaluator.pattern_store import NormPatternStore
+from norma.tools.evaluator.predicates import (
+    action_type,
+    all_of,
+    any_of,
+    negate,
+    parameter_value,
+    resource_requested_by_user,
+)
 from norma.tools.memory import AgentMemory
 from norma.tools.server import create_server
 from substrate import ActionType, Principal, Resource, SanctionType, Substrate
@@ -17,13 +25,13 @@ from substrate.model import ResourceType
 
 from .model import Scenario
 from .message_logger import MessageLoggingLLM, new_log_path
-from .tools import EXPERIMENT_TOOLS
+from .tools import ARBITER_TOOLS, EXPERIMENT_TOOLS
 
 
 PRINCIPAL_ID = "researcher-1"
 RESOURCE_ID = "gpu-1"
 
-# Experiment 0: researcher-1 must request the allocated GPU before using it.
+# Experiment 0: researcher-1 must request the GPU before using it.
 
 def build_experiment_0(
     llm: LLM | None = None,
@@ -31,6 +39,8 @@ def build_experiment_0(
 ) -> tuple[Scenario, NormaAgent, object]:
     substrate = Substrate()
     substrate.state.principals.append(Principal(PRINCIPAL_ID))
+    # The GPU starts unallocated; the experiment tests the request-before-use rule,
+    # not whether allocation itself has already happened.
     substrate.state.resources.append(
         Resource(RESOURCE_ID, ResourceType.COMPUTE, allocated_to=None, in_use_by=None)
     )
@@ -38,27 +48,28 @@ def build_experiment_0(
     pattern_store = NormPatternStore()
     instance_store = NormInstanceStore()
 
-    # Insert the "request_before_use" norm pattern into the pattern store and create an instance for researcher-1 and gpu-1
+    # The norm applies to a use of gpu-1, is discharged by a prior request, and is
+    # violated when the use occurs without that request.
     pattern_id = pattern_store.insert(
         "request_before_use",
-        lambda action, state: action.type in (ActionType.USE, "use", "use_resource")
-        and action.parameters.get("resource_id") == RESOURCE_ID,
-        lambda action, state: any(
-            request.resource_id == RESOURCE_ID
-            and request.requester_id == PRINCIPAL_ID
-            for request in state.resource_requests
+        all_of(
+            any_of(
+                action_type(ActionType.USE),
+                # Keep accepting the legacy spelling used by older LLM responses.
+                lambda action, state: action.type in ("use", "use_resource"),
+            ),
+            parameter_value("resource_id", RESOURCE_ID),
         ),
-        lambda action, state: not any(
-            request.resource_id == RESOURCE_ID
-            and request.requester_id == PRINCIPAL_ID
-            for request in state.resource_requests
-        ),
+        resource_requested_by_user(),
+        negate(resource_requested_by_user()),
     )
     instance_store.insert(pattern_id, PRINCIPAL_ID, object=RESOURCE_ID)
 
+    # The evaluator shares this substrate so it can simulate proposals and track
+    # the state/action history used by temporal norms.
     evaluator = NormEvaluator(pattern_store, instance_store, substrate)
 
-    # Configure the organization to issue a warning sanction for violations of the "request_before_use" norm
+    # Org receives violations after execution and applies the experiment policy.
     org = OrgSelf({"request_before_use": SanctionType.WARNING})
     memory = AgentMemory()
     server = create_server(memory, evaluator)
@@ -71,12 +82,15 @@ def build_experiment_0(
             ),
         )
     if log_path is None:
-        log_path = new_log_path()
+        log_path = new_log_path("Norma Experiment 0")
+    # Keep the transcript separate from the LLM so prompts, responses, and tool
+    # results are recorded without changing the agent interfaces.
     llm = MessageLoggingLLM(llm, log_path)
 
     agent = NormaAgent(
         reasoner=Reasoner(llm, EXPERIMENT_TOOLS),
-        arbiter=Arbiter(llm, EXPERIMENT_TOOLS),
+        # The Arbiter can evaluate norms but intentionally cannot write memory.
+        arbiter=Arbiter(llm, ARBITER_TOOLS),
         substrate=substrate,
     )
 
@@ -86,17 +100,17 @@ def build_experiment_0(
         sanctions=["warning"],
         evaluator=evaluator,
         org=org,
-        # Define the goal state as a lambda function
+        # Success requires both the prerequisite request and the final use.
         goal_reached=lambda state: (
             any(
                 resource.id == RESOURCE_ID and resource.in_use_by == PRINCIPAL_ID
                 for resource in state.resources
             )
-            # and any(
-            #     request.resource_id == RESOURCE_ID
-            #     and request.requester_id == PRINCIPAL_ID
-            #     for request in state.resource_requests
-            # )
+            and any(
+                request.resource_id == RESOURCE_ID
+                and request.requester_id == PRINCIPAL_ID
+                for request in state.resource_requests
+            )
         ),
     )
     return scenario, agent, server

@@ -1,14 +1,14 @@
 from norma.agent import NormaAgent
 from norma.arbiter import Arbiter
 from norma.llm import LLM, LLMResponse
-from norma.org import OrgSelf
+from norma.org import OrgSelf, SanctionRule
 from norma.reasoner import Reasoner
 from norma.tools.evaluator import NormEvaluator
 from norma.tools.evaluator.instance_store import NormInstanceStore
 from norma.tools.evaluator.pattern_store import NormPatternStore
 from experiments.model import Scenario
 from experiments.runner import run_experiment
-from substrate import ActionType, Principal, Resource, ResourceType, SanctionType, Substrate, ViolationEvent
+from substrate import ActionType, Principal, Project, Resource, ResourceType, SanctionType, Substrate, ViolationEvent
 
 
 def test_org_returns_policy_decision_with_violation_data_and_timestamp():
@@ -42,6 +42,38 @@ def test_org_does_not_duplicate_a_violation():
 
     assert org.respond(violation) is not None
     assert org.respond(violation) is None
+
+
+def test_org_policy_can_select_multiple_sanctions_by_event():
+    org = OrgSelf(
+        {
+            "ai_use": [
+                SanctionRule(
+                    when=lambda violation: violation.event_type == "publish",
+                    sanctions=(SanctionType.PAPER_WITHDRAWAL,),
+                ),
+                SanctionRule(
+                    when=lambda violation: violation.event_type == "undisclosed_ai_use",
+                    sanctions=(SanctionType.REPUTATION_LOSS, SanctionType.EXPULSION),
+                ),
+            ]
+        },
+        clock=lambda: 3,
+    )
+
+    decisions = org.respond(ViolationEvent(1, "p1", None, "ai_use", "undisclosed_ai_use"))
+
+    assert isinstance(decisions, list)
+    assert [decision.sanction for decision in decisions] == [
+        SanctionType.REPUTATION_LOSS,
+        SanctionType.EXPULSION,
+    ]
+    assert all(decision.timestamp == 3 for decision in decisions)
+    assert set(org.get_possible_sanctions()) == {
+        SanctionType.PAPER_WITHDRAWAL.value,
+        SanctionType.REPUTATION_LOSS.value,
+        SanctionType.EXPULSION.value,
+    }
 
 
 def test_runner_passes_violations_to_org_and_applies_sanction():
@@ -79,8 +111,59 @@ def test_runner_passes_violations_to_org_and_applies_sanction():
     assert substrate.state.sanctions == result.sanctions
     assert result.sanctions[0].subject == "p1"
     assert result.sanctions[0].object == "resource-1"
+    assert result.sanctions[0].timestamp == 1
     assert all("warning" in prompt for prompt in llm.user_prompts)
     assert all("legacy-value-that-must-not-be-used" not in prompt for prompt in llm.user_prompts)
+
+
+def test_runner_executes_world_event_at_its_logical_step():
+    substrate = Substrate()
+    substrate.state.principals.append(Principal("p1"))
+    substrate.state.resources.append(Resource("resource-1", ResourceType.COMPUTE))
+    llm = ScriptedLLM()
+    llm.responses = [
+        {"action": {"type": "wait", "actor": "p1", "parameters": {}}, "rationale": "Wait."},
+        {"approved": True, "rationale": "Approved."},
+    ]
+    agent = NormaAgent(Reasoner(llm, []), Arbiter(llm, []), substrate)
+    scenario = Scenario(
+        name="World event test",
+        goal="Allocate the resource",
+        sanctions=[],
+        goal_reached=lambda state: state.resources[0].allocated_to == "p1",
+        world_events={
+            2: [lambda shared_substrate: setattr(shared_substrate.state.resources[0], "allocated_to", "p1")]
+        },
+    )
+
+    result = run_experiment(scenario, agent, max_steps=2)
+
+    assert result.achieved is True
+    assert len(result.steps) == 1
+    assert substrate.state.resources[0].allocated_to == "p1"
+
+
+def test_agent_observes_world_event_before_its_turn():
+    substrate = Substrate()
+    substrate.state.principals.append(Principal("p1"))
+    substrate.state.resources.append(Resource("resource-1", ResourceType.COMPUTE))
+    substrate.state.projects.append(Project("project-1"))
+    llm = ScriptedLLM()
+    agent = NormaAgent(Reasoner(llm, []), Arbiter(llm, []), substrate)
+    scenario = Scenario(
+        name="Visible world event test",
+        goal="Use the resource",
+        sanctions=[],
+        goal_reached=lambda state: state.resources[0].in_use_by == "p1",
+        world_events={
+            1: [lambda shared_substrate: setattr(shared_substrate.state.projects[0], "public", True)]
+        },
+    )
+
+    result = run_experiment(scenario, agent, max_steps=1)
+
+    assert result.achieved is True
+    assert '"public": true' in llm.user_prompts[0]
 
 
 class ScriptedLLM(LLM):

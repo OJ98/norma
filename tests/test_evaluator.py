@@ -108,6 +108,8 @@ def test_evaluate_action_returns_discharged_status_for_matching_action(substrate
     assert len(result.evaluations) == 1
     assert result.evaluations[0].instance_id == instance_id
     assert result.evaluations[0].status == NormStatus.DISCHARGED
+    assert len(evaluator.history) == 1
+    assert substrate.state.messages == []
 
 
 def test_get_applicable_norms_raises_when_pattern_is_missing(substrate):
@@ -148,3 +150,73 @@ def test_norm_status_helpers_cover_inactive_and_violation_states(substrate):
     inactive_pattern = pattern_store.get(inactive_pattern_id)
 
     assert evaluator._get_norm_status(inactive_pattern, action, substrate.state) == NormStatus.INACTIVE
+
+
+def test_history_allows_discharge_after_multiple_steps(substrate):
+    pattern_store = NormPatternStore()
+    instance_store = NormInstanceStore()
+    pattern_id = pattern_store.insert(
+        "request_then_wait",
+        lambda action, state: action.type == ActionType.SEND,
+        lambda action, state: action.type == ActionType.WAIT,
+        lambda action, state: False,
+    )
+    instance_store.insert(pattern_id, "p1")
+    evaluator = NormEvaluator(pattern_store, instance_store, substrate)
+
+    send = Action(ActionType.SEND, "p1", {"message_id": "msg-1", "content": "ready", "recipient_id": "p2"})
+    substrate.execute(send)
+    evaluator.evaluate_executed_action(send, step=1)
+    wait = Action(ActionType.WAIT, "p1", {})
+    substrate.execute(wait)
+
+    result = evaluator.evaluate_executed_action(wait, step=2)
+
+    assert result.evaluations[0].status == NormStatus.DISCHARGED
+    assert [entry.step for entry in evaluator.history] == [0, 1, 2]
+
+
+def test_history_can_supply_prior_evidence_for_a_later_violation(substrate):
+    pattern_store = NormPatternStore()
+    instance_store = NormInstanceStore()
+    pattern_id = pattern_store.insert(
+        "message_then_wait_violation",
+        lambda action, state: action.type == ActionType.SEND,
+        lambda action, state: False,
+        lambda action, state: action.type == ActionType.WAIT and bool(state.messages),
+    )
+    instance_store.insert(pattern_id, "p1")
+    evaluator = NormEvaluator(pattern_store, instance_store, substrate)
+
+    send = Action(ActionType.SEND, "p1", {"message_id": "msg-1", "content": "ready", "recipient_id": "p2"})
+    substrate.execute(send)
+    evaluator.evaluate_executed_action(send, step=1)
+    wait = Action(ActionType.WAIT, "p1", {})
+    substrate.execute(wait)
+
+    result = evaluator.evaluate_executed_action(wait, step=2)
+    assert result.evaluations[0].status == NormStatus.VIOLATED
+
+
+def test_history_supports_step_based_deadline_conditions(substrate):
+    pattern_store = NormPatternStore()
+    instance_store = NormInstanceStore()
+    pattern_id = pattern_store.insert(
+        "deadline_norm",
+        lambda action, state: action.type == ActionType.SEND,
+        lambda action, state: False,
+        lambda action, state: action.type == ActionType.WAIT and evaluator.history[-1].step >= 2,
+    )
+    instance_store.insert(pattern_id, "p1")
+    evaluator = NormEvaluator(pattern_store, instance_store, substrate)
+
+    send = Action(ActionType.SEND, "p1", {"message_id": "msg-1", "content": "ready", "recipient_id": "p2"})
+    substrate.execute(send)
+    evaluator.evaluate_executed_action(send, step=1)
+    evaluator.record_state(2)
+    wait = Action(ActionType.WAIT, "p1", {})
+    substrate.execute(wait)
+
+    result = evaluator.evaluate_executed_action(wait, step=2)
+
+    assert result.evaluations[0].status == NormStatus.VIOLATED

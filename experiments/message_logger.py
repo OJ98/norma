@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -8,9 +9,10 @@ from typing import Any
 from norma.llm import LLM, LLMResponse, ToolCall
 
 
-def new_log_path(directory: str | Path = "experiments/logs") -> Path:
+def new_log_path(experiment_name: str = "experiment", directory: str | Path = "experiments/logs") -> Path:
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S_%fZ")
-    return Path(directory) / f"experiment_0_{timestamp}.log"
+    prefix = re.sub(r"[^a-z0-9]+", "_", experiment_name.lower()).strip("_") or "experiment"
+    return Path(directory) / f"{prefix}_{timestamp}.log"
 
 
 class MessageLoggingLLM(LLM):

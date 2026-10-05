@@ -4,6 +4,7 @@ pytest.importorskip("mcp.server.fastmcp")
 
 from norma.llm import LLM, LLMResponse
 from norma.tools.server import FastMCP
+from substrate import Action, ActionType
 
 from experiments.experiment_0 import PRINCIPAL_ID, RESOURCE_ID, build_experiment_0
 from experiments.runner import run_experiment
@@ -33,14 +34,24 @@ def test_experiment_0_constructs_shared_substrate_and_goal():
         "retrieve_memory",
         "evaluate_action",
     ]
-    assert agent.arbiter.tools == agent.reasoner.tools
+    assert "store_memory" in [tool["name"] for tool in agent.reasoner.tools]
+    assert "store_memory" not in [tool["name"] for tool in agent.arbiter.tools]
 
 
 def test_experiment_0_goal_requires_request_before_use():
     scenario, agent, _server = build_experiment_0(ScriptedLLM())
-    agent.substrate.state.resources[0].in_use_by = None
+    agent.substrate.state.resources[0].in_use_by = PRINCIPAL_ID
 
     assert scenario.goal_reached(agent.substrate.get_state()) is False
+
+    agent.substrate.execute(
+        Action(
+            ActionType.REQUEST,
+            PRINCIPAL_ID,
+            {"resource_id": RESOURCE_ID},
+        )
+    )
+    assert scenario.goal_reached(agent.substrate.get_state()) is True
 
 
 def test_runner_reaches_experiment_0_goal():

@@ -5,6 +5,8 @@ from uuid import UUID
 
 from substrate import Action, SubstrateState
 
+# Predicates remain small functions over one action and one state. Temporal
+# predicates can use NormEvaluator.history_matches when prior steps matter.
 Predicate: TypeAlias = Callable[[Action, SubstrateState], bool]
 
 class NormStatus(Enum):
@@ -15,6 +17,8 @@ class NormStatus(Enum):
 
 @dataclass
 class NormPattern:
+    # A pattern defines the rule; it does not identify the participants or
+    # resource involved in a particular scenario.
     id: UUID
     name: str
     antecedent: Predicate
@@ -24,6 +28,7 @@ class NormPattern:
 
 @dataclass
 class NormInstance:
+    # An instance binds a pattern to a subject and optional object/project.
     id: UUID
     pattern_id: UUID
     subject: str
@@ -44,3 +49,12 @@ class EvaluationResult:
     action: Action
     next_state: SubstrateState
     evaluations: list[NormEvaluation]
+
+
+@dataclass(frozen=True)
+class HistoryEntry:
+    # State-only entries represent world events; action entries represent
+    # successful agent executions observed by the evaluator.
+    step: int
+    state: SubstrateState
+    action: Action | None = None
