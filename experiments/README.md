@@ -44,6 +44,62 @@ of `Scenario`. Events are keyed by logical step and execute before the agent's
 turn, so later reasoning can observe state changes such as approvals or author
 agreements that occur independently of the active agent.
 
+### Adding A Sanction Policy
+
+For a fixed response, map a norm identifier directly to a sanction:
+
+```python
+org = OrgSelf({"request_before_use": SanctionType.WARNING})
+```
+
+Use ordered `SanctionRule` values when the response depends on the violation
+event. The first matching rule is selected, and one rule can produce multiple
+sanctions:
+
+```python
+org = OrgSelf({
+    "ai_use_disclosure": [
+        SanctionRule(
+            when=lambda violation: violation.event_type == "publish",
+            sanctions=(SanctionType.PAPER_WITHDRAWAL,),
+        ),
+        SanctionRule(
+            when=lambda violation: violation.event_type == "undisclosed_ai_use",
+            sanctions=(SanctionType.REPUTATION_LOSS, SanctionType.EXPULSION),
+        ),
+    ],
+})
+```
+
+Import `OrgSelf`, `SanctionRule`, and `SanctionType` in the experiment module.
+The runner passes the action type as `violation.event_type` and the logical
+step as `violation.timestamp`.
+
+### Adding World Events
+
+Define a function that receives the shared `Substrate`, then register it under
+the logical step when it should run:
+
+```python
+def approve_project(substrate: Substrate) -> None:
+    project = next(project for project in substrate.state.projects if project.id == "project-1")
+    project.public = True
+
+
+scenario = Scenario(
+    name="Experiment 1",
+    goal="Complete the project",
+    sanctions=[],
+    goal_reached=lambda state: state.projects[0].public,
+    world_events={3: [approve_project]},
+)
+```
+
+The runner executes all events scheduled for a step before checking the goal
+or asking the agent to act. Keep events deterministic and mutate only the
+shared substrate state; use them for independent actors or institutions that
+are outside the active Norma agent.
+
 ## Adding A Scenario
 
 Create a module such as `experiment_1.py` with a factory that follows the
