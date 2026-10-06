@@ -1,8 +1,11 @@
+from dotenv import load_dotenv
+
 from experiments.experiment_0 import build_experiment_0
 from experiments.runner import run_experiment
 
 
 def main() -> None:
+    load_dotenv()  # read ANTHROPIC_API_KEY and NORMA_MODEL from .env
     scenario, agent, _server = build_experiment_0()
     result = run_experiment(scenario, agent)
 

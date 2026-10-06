@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from substrate import Action
+from substrate import Action, ActionType
 
 REASONER_OUTPUT_SCHEMA = {
     "type": "object",
@@ -10,6 +10,8 @@ REASONER_OUTPUT_SCHEMA = {
             "properties": {
                 "type": {
                     "type": "string",
+                    # The action space (A_t): the agent can only pick one of these.
+                    "enum": [action_type.value for action_type in ActionType],
                 },
                 "actor": {
                     "type": "string",

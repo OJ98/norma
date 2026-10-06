@@ -15,6 +15,8 @@ class NormEvaluator:
         self.history: list[HistoryEntry] = [
             HistoryEntry(step=0, state=deepcopy(substrate.get_state()))
         ]
+        # Instances that ended (violated or discharged) are final and never re-reported.
+        self.closed: dict = {}
 
     def record_state(self, step: int) -> None:
         # Capture a copy so later substrate mutations cannot rewrite history.
@@ -46,6 +48,8 @@ class NormEvaluator:
         current_state = current_state or self.substrate.get_state()
         next_state = next_state or self.substrate.simulate_action(action)
         for instance in instances:
+            if instance.id in self.closed:
+                continue
             try:
                 pattern = self.pattern_store.get(instance.pattern_id)
             except KeyError as exc:
@@ -95,8 +99,12 @@ class NormEvaluator:
         evaluations = []
 
         for instance in self.instance_store.get_all():
+            if instance.id in self.closed:
+                continue
             pattern = self.pattern_store.get(instance.pattern_id)
             status = self._get_norm_status(pattern, action, state)
+            if status in (NormStatus.VIOLATED, NormStatus.DISCHARGED):
+                self.closed[instance.id] = status
             evaluations.append(
                 NormEvaluation(
                     instance_id=instance.id,
@@ -121,8 +129,9 @@ class NormEvaluator:
             or self.history_matches(pattern.antecedent)
         ):
             return NormStatus.INACTIVE
-        if pattern.violation_condition(action, state) or self.history_matches(pattern.violation_condition):
+        # The antecedent may come from an earlier step; violation and discharge are judged on this action only.
+        if pattern.violation_condition(action, state):
             return NormStatus.VIOLATED
-        if pattern.discharge_condition(action, state) or self.history_matches(pattern.discharge_condition):
+        if pattern.discharge_condition(action, state):
             return NormStatus.DISCHARGED
         return NormStatus.ACTIVE

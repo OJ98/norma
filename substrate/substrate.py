@@ -43,6 +43,8 @@ class Substrate:
             ActionType.PUBLISH: self.handle_publish,
             ActionType.WAIT: self.handle_wait,
             ActionType.RELEASE: self.handle_release,
+            ActionType.COPY: self.handle_copy,
+            ActionType.START: self.handle_start,
         }
 
         handler = handlers.get(action_type)
@@ -123,6 +125,34 @@ class Substrate:
 
         resource.in_use_by = None
         return ActionResult(success=True, message=f"Resource {resource_id} released by principal {principal.id}")
+
+    # Copy a dataset into a new resource held by the actor
+    def handle_copy(self, action: Action) -> ActionResult:
+        resource_id = self._require_parameter(action, "resource_id")
+        resource = self._get_resource(resource_id)
+        principal = self._get_principal(action.principal_id)
+
+        if resource.type != ResourceType.DATASET:
+            return ActionResult(success=False, message=f"Resource {resource_id} is not a dataset and cannot be copied")
+
+        copy_id = f"{resource_id}-copy-{principal.id}"
+        if any(existing.id == copy_id for existing in self.state.resources):
+            return ActionResult(success=False, message=f"Principal {principal.id} already holds a copy of {resource_id}")
+
+        self.state.resources.append(Resource(copy_id, resource.type, allocated_to=principal.id, version=resource.version))
+        return ActionResult(success=True, message=f"Resource {resource_id} copied to {copy_id} by principal {principal.id}")
+
+    # Start a project (IRB review is a norm, not a precondition)
+    def handle_start(self, action: Action) -> ActionResult:
+        project_id = self._require_parameter(action, "project_id")
+        project = self._get_project(project_id)
+        self._get_principal(action.principal_id)
+
+        if project.started:
+            return ActionResult(success=False, message=f"Project {project_id} has already started")
+
+        project.started = True
+        return ActionResult(success=True, message=f"Project {project_id} started by principal {action.principal_id}")
 
     # Handler for the "modify" action type
     def handle_modify(self, action: Action) -> ActionResult:

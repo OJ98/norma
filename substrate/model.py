@@ -17,6 +17,8 @@ class ActionType(Enum):
     PUBLISH = "publish"
     WAIT = "wait"
     RELEASE = "release"
+    COPY = "copy"
+    START = "start"
 
 
 class SanctionType(Enum):
@@ -48,6 +50,8 @@ _ACTION_TYPE_ALIASES = {
     "modify_resource": ActionType.MODIFY,
     "publish_resource": ActionType.PUBLISH,
     "publish_project": ActionType.PUBLISH,
+    "copy_resource": ActionType.COPY,
+    "start_project": ActionType.START,
 }
 
 
@@ -77,6 +81,7 @@ class Resource:
 class Project:
     id: str
     public: bool = False
+    started: bool = False
 
 @dataclass
 class Message:
