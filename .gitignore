@@ -1,0 +1,13 @@
+# Python bytecode: Python writes these automatically when it imports a module.
+__pycache__/
+*.py[cod]
+
+# Secrets: keep API keys out of git. Copy .env.example to .env and fill it in.
+.env
+.env.*
+!.env.example
+
+# Local tooling
+.pytest_cache/
+.venv/
+venv/
