@@ -116,6 +116,8 @@ class Substrate:
         return ActionResult(success=True, message=f"Principal {action.principal_id} is waiting")
 
     def handle_release(self, action: Action) -> ActionResult:
+        if "project_id" in action.parameters:
+            return self._release_project(action)  # withdraw a paper from a venue, or recuse from a review
         resource_id = self._require_parameter(action, "resource_id")
         resource = self._get_resource(resource_id)
         principal = self._get_principal(action.principal_id)
@@ -154,8 +156,37 @@ class Substrate:
         project.started = True
         return ActionResult(success=True, message=f"Project {project_id} started by principal {action.principal_id}")
 
+    # Withdraw a project from the venue in recipient_id, or remove the actor from its authors (recusal)
+    def _release_project(self, action: Action) -> ActionResult:
+        project = self._get_project(action.parameters["project_id"])
+        principal = self._get_principal(action.principal_id)
+        venue = action.parameters.get("recipient_id")
+
+        if venue:
+            if venue not in project.venues:
+                return ActionResult(success=False, message=f"Project {project.id} is not under review at {venue}")
+            project.venues.remove(venue)
+            return ActionResult(success=True, message=f"Project {project.id} withdrawn from {venue} by principal {principal.id}")
+
+        if principal.id not in project.authors:
+            return ActionResult(success=False, message=f"Principal {principal.id} is not on project {project.id}")
+        project.authors.remove(principal.id)
+        return ActionResult(success=True, message=f"Principal {principal.id} left project {project.id}")
+
+    # Add principal_id to a project's authors
+    def _add_author(self, action: Action) -> ActionResult:
+        project = self._get_project(action.parameters["project_id"])
+        author = self._get_principal(self._require_parameter(action, "principal_id"))
+
+        if author.id in project.authors:
+            return ActionResult(success=False, message=f"Principal {author.id} is already an author of {project.id}")
+        project.authors.append(author.id)
+        return ActionResult(success=True, message=f"Principal {author.id} added as an author of {project.id} by principal {action.principal_id}")
+
     # Handler for the "modify" action type
     def handle_modify(self, action: Action) -> ActionResult:
+        if "project_id" in action.parameters:
+            return self._add_author(action)  # modifying a project means adding an author
         # Check if the required parameters are present
         resource_id = self._require_parameter(action, "resource_id")
         # Get the resource and principal objects
@@ -179,7 +210,9 @@ class Substrate:
         sender = self._get_principal(action.principal_id)
         recipient = self._get_principal(recipient_id)
 
-        message = Message(id=message_id, content=content, sender=sender.id, recipient=recipient.id)
+        # A resource or project in the parameters travels with the message as an attachment
+        attachment = action.parameters.get("project_id") or action.parameters.get("resource_id")
+        message = Message(id=message_id, content=content, sender=sender.id, recipient=recipient.id, attachment=attachment)
         self.state.messages.append(message)
         return ActionResult(success=True, message=f"Message {message_id} sent from principal {sender.id} to principal {recipient.id}")
 
@@ -197,6 +230,9 @@ class Substrate:
         project_id = self._require_parameter(action, "project_id")
         project = self._get_project(project_id)
         project.public = True
+        venue = action.parameters.get("recipient_id")
+        if venue and venue not in project.venues:
+            project.venues.append(venue)  # submitting to a venue puts the paper under review there
         return ActionResult(success=True, message=f"Project {project_id} published by principal {action.principal_id}")
     
     def _handle_publish_resource(self, action: Action) -> ActionResult:

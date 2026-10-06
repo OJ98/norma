@@ -1,5 +1,5 @@
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 
 class ResourceType(Enum):
@@ -82,6 +82,8 @@ class Project:
     id: str
     public: bool = False
     started: bool = False
+    authors: list[str] = field(default_factory=list)  # who is listed as an author
+    venues: list[str] = field(default_factory=list)  # venues where the paper is under review
 
 @dataclass
 class Message:
@@ -89,6 +91,7 @@ class Message:
     content: str
     sender: str
     recipient: str
+    attachment: str | None = None  # a resource or project sent along with the message
 
 @dataclass
 class ResourceRequest:

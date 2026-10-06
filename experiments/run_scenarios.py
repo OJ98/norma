@@ -1,10 +1,12 @@
 # Commands (run from the repository root):
 #   python -m experiments.run_scenarios --list                       list every scenario with its tags
-#   python -m experiments.run_scenarios                              run all scenarios
-#   python -m experiments.run_scenarios gpu-request                  run one scenario
-#   python -m experiments.run_scenarios gpu-request paper-submission run several scenarios
-#   python -m experiments.run_scenarios --tag compute                run every scenario with a tag (e.g. compute, N8)
-#   python -m experiments.run_scenarios gpu-queue --max-steps 4      override the step limit
+#   python -m experiments.run_scenarios                              run all scenarios (21 singles + 12 combinations)
+#   python -m experiments.run_scenarios idle-gpu                     run one scenario
+#   python -m experiments.run_scenarios idle-gpu login-node          run several scenarios
+#   python -m experiments.run_scenarios --tag single                 run every single-norm scenario
+#   python -m experiments.run_scenarios --tag combo                  run every combination
+#   python -m experiments.run_scenarios --tag N12                    run every scenario that uses norm N12 (also: hpc, lab, paper, review)
+#   python -m experiments.run_scenarios idle-gpu --max-steps 4       override the step limit
 import argparse
 import asyncio
 import os
@@ -27,7 +29,7 @@ from .message_logger import MessageLoggingLLM, new_log_path
 from .model import ExperimentResult, Scenario
 from .norms import NORMS
 from .runner import run_experiment
-from .scenarios import SCENARIOS, Spec
+from .scenarios import SANCTIONS, SCENARIOS, Spec
 from .tools import ARBITER_TOOLS, EXPERIMENT_TOOLS
 
 
@@ -49,7 +51,7 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
         instance_store.insert(pattern_ids[key], subject, object=obj)
 
     evaluator = NormEvaluator(pattern_store, instance_store, substrate)
-    org = OrgSelf(spec.policy)
+    org = OrgSelf(spec.policy or {norm_name: SANCTIONS[norm_name] for norm_name, *_ in spec.norms})
     server = create_server(AgentMemory(), evaluator)
 
     if llm is None:
@@ -83,7 +85,10 @@ def select(names: list[str] | None = None, tag: str | None = None) -> list[str]:
     unknown = set(names or []) - SCENARIOS.keys()
     if unknown:
         raise SystemExit(f"Unknown scenario(s): {', '.join(sorted(unknown))}. Use --list.")
-    return [name for name in (names or SCENARIOS) if tag is None or tag in SCENARIOS[name]().tags]
+    chosen = [name for name in (names or SCENARIOS) if tag is None or tag in SCENARIOS[name]().tags]
+    if tag and not chosen:
+        raise SystemExit(f"No scenario has the tag {tag!r} (tags are case-sensitive). Use --list.")
+    return chosen
 
 
 # Run the selected scenarios and return their results by name
