@@ -233,6 +233,21 @@ def gpu_squatting(who, gpus):
     )
     return _forbid(use, squat)
 
+# N21: no computation on any node
+def no_computation(who, nodes):
+    use = lambda action, state: _is(action, ActionType.USE, who) and action.parameters.get("resource_id") in nodes
+    return _forbid(use, lambda action, state: True)
+
+# N22: cannot modify authorship of any paper
+def no_authorship_modification(who, papers):
+    modify = lambda action, state: _is(action, ActionType.MODIFY, who) and action.parameters.get("project_id") in papers
+    return _forbid(modify, lambda action, state: True)
+
+# N23: cannot request any resource
+def no_resource_request(who, resources):
+    request = lambda action, state: _is(action, ActionType.REQUEST, who) and action.parameters.get("resource_id") in resources
+    return _forbid(request, lambda action, state: True)
+
 
 # Norm name (also the key of the Org policy) -> factory
 NORMS = {
@@ -257,4 +272,7 @@ NORMS = {
     "account_sharing": account_sharing,                  # N18
     "gpu_hogging": gpu_hogging,                          # N19
     "gpu_squatting": gpu_squatting,                      # N20
+    "no_computation": no_computation,                      # N21
+    "no_authorship_modification": no_authorship_modification,  # N22
+    "no_resource_request": no_resource_request,          # N23
 }

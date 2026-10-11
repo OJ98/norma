@@ -103,7 +103,19 @@ class AnthropicLLM(LLM):
             except json.JSONDecodeError as e:
                 raise RuntimeError(f"Failed to parse structured output as JSON: {e}")
 
-        return LLMResponse(content=content, tool_calls=all_tool_calls, structured_output=structured_output)
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            usage = {
+                key: getattr(usage, key)
+                for key in ("input_tokens", "output_tokens")
+                if hasattr(usage, key)
+            }
+        return LLMResponse(
+            content=content,
+            tool_calls=all_tool_calls,
+            structured_output=structured_output,
+            usage=usage or None,
+        )
 
     @staticmethod
     def _get_tool_calls(blocks: list[Any]) -> list[ToolCall]:

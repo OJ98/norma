@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from substrate import Action, ActionType
 
@@ -39,6 +39,13 @@ REASONER_OUTPUT_SCHEMA = {
         "rationale": {
             "type": "string",
         },
+        "candidate_actions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+            },
+        },
     },
     "required": [
         "action",
@@ -52,3 +59,4 @@ REASONER_OUTPUT_SCHEMA = {
 class ReasonerProposal:
     action: Action
     rationale: str
+    candidate_actions: list[dict] = field(default_factory=list)

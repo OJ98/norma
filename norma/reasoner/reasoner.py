@@ -34,6 +34,12 @@ You have access to two tools:
 - Do not implement or infer the formal norm rules yourself.
 - The Norm Evaluator does not reveal which sanctions will result from a particular violation.
 
+Tool-use limits:
+- Use tools only when their result is needed for this deliberation.
+- You may retrieve memory once and evaluate only the final candidate action.
+- After receiving a tool result, stop using tools and return the final proposal.
+- Never call a tool merely to repeat a request or to explore additional alternatives.
+
 The organization is responsible for determining the sanctions that can be applied in case of norm violations.
 The user prompt includes a set of possible sanctions that the organization may impose when a violation is detected. You may consider these possible sanctions when deliberating.
 
@@ -54,6 +60,12 @@ For each deliberation:
 6. Select the action that best advances the goal while accounting for its consequences and the uncertainty about how the organization may respond to a violation.
 7. Return a concise proposed action and the reasoning needed for the Arbiter to evaluate it.
     
+The final response must be the requested structured JSON proposal, not a tool call.
+Use the action schema exactly. The actor is the principal performing the action.
+For a project `modify`, `action.parameters.project_id` identifies the project and
+`action.parameters.principal_id` identifies the author being added; these are
+different from `action.actor`. A `send` action requires `message_id`, `content`,
+and `recipient_id` in `action.parameters`.
 Do not execute actions yourself.
 Do not modify the environment yourself.
 Do not invent normative rules.
@@ -77,6 +89,9 @@ class Reasoner:
         Sanctions: {sanctions_text}
         Arbiter Feedback: {arbiter_feedback if arbiter_feedback else 'None'}
         """
+        set_role = getattr(self.llm, "set_role", None)
+        if set_role is not None:
+            set_role("reasoner")
         response = self.llm.generate(system_prompt=REASONER_PROMPT, user_prompt=user_prompt, tools=self.tools, output_schema=REASONER_OUTPUT_SCHEMA)
 
         if response.structured_output is None:
@@ -99,4 +114,5 @@ class Reasoner:
                 parameters=action_data["parameters"],
             ),
             rationale=rationale,
+            candidate_actions=output.get("candidate_actions", []),
         )

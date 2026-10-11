@@ -14,6 +14,7 @@ class LLMResponse:
     content: str | None
     tool_calls: list[ToolCall]
     structured_output: dict[str, Any] | None = None
+    usage: dict[str, Any] | None = None
 
 # Define an abstract base class for LLMs that enforces the implementation of the generate method
 class LLM(ABC):

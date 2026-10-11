@@ -24,7 +24,7 @@ from substrate import ActionType, Principal, Resource, SanctionType, Substrate
 from substrate.model import ResourceType
 
 from .model import Scenario
-from .message_logger import MessageLoggingLLM, new_log_path
+from .message_logger import MessageLoggingLLM, StructuredEventLogger, new_log_path
 from .tools import ARBITER_TOOLS, EXPERIMENT_TOOLS
 
 
@@ -85,7 +85,19 @@ def build_experiment_0(
         log_path = new_log_path("Norma Experiment 0")
     # Keep the transcript separate from the LLM so prompts, responses, and tool
     # results are recorded without changing the agent interfaces.
-    llm = MessageLoggingLLM(llm, log_path)
+    model = os.getenv("NORMA_MODEL", "claude-haiku-4-5-20251001")
+    event_logger = StructuredEventLogger(
+        Path(log_path).with_suffix(".jsonl") if log_path else new_structured_log_path("Norma Experiment 0"),
+        base={
+            "experiment": "Norma Experiment 0",
+            "condition": "default",
+            "provider": "anthropic",
+            "model": model,
+            "scenario_id": "Norma Experiment 0",
+            "configuration_version": "experiment-0",
+        },
+    )
+    llm = MessageLoggingLLM(llm, log_path, event_logger=event_logger, provider="anthropic", model=model)
 
     agent = NormaAgent(
         reasoner=Reasoner(llm, EXPERIMENT_TOOLS),

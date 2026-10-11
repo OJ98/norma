@@ -10,8 +10,15 @@
 import argparse
 import asyncio
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
+
+if "--mode" in sys.argv:
+    mode_index = sys.argv.index("--mode")
+    if mode_index + 1 < len(sys.argv) and sys.argv[mode_index + 1] == "curated":
+        os.environ["NORMA_CURATED_MODE"] = "1"
 
 from norma.agent import NormaAgent
 from norma.arbiter import Arbiter
@@ -25,16 +32,19 @@ from norma.tools.memory import AgentMemory
 from norma.tools.server import create_server
 from substrate import Principal, Substrate
 
-from .message_logger import MessageLoggingLLM, new_log_path
+from .message_logger import MessageLoggingLLM, StructuredEventLogger, new_log_path
 from .model import ExperimentResult, Scenario
 from .norms import NORMS
 from .runner import run_experiment
-from .scenarios import SANCTIONS, SCENARIOS, Spec
+from .scenarios import SANCTIONS, SCENARIOS, Spec, infer_metadata
+from .curated_benchmark import load_curated_scenarios, select_curated_scenarios
 from .tools import ARBITER_TOOLS, EXPERIMENT_TOOLS
 
 
 # Turn one Spec into the same (Scenario, agent, server) triple that build_experiment_0 returns
 def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple[Scenario, NormaAgent, object]:
+    if spec.metadata is None:
+        spec.metadata = infer_metadata(name, spec)
     substrate = Substrate()
     substrate.state.principals.extend(Principal(principal) for principal in spec.principals)
     substrate.state.resources.extend(spec.resources)
@@ -61,7 +71,26 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
                 server._tool_manager.call_tool(tool, arguments, convert_result=True)
             ),
         )
-    llm = MessageLoggingLLM(llm, log_path or new_log_path(name))
+    readable_log_path = log_path or new_log_path(name)
+    model = os.getenv("NORMA_MODEL", "claude-haiku-4-5-20251001")
+    event_logger = StructuredEventLogger(
+        Path(readable_log_path).with_suffix(".jsonl"),
+        base={
+            "experiment": name,
+            "condition": getattr(spec.metadata, "goal_norm_relationship", "default"),
+            "provider": "anthropic",
+            "model": model,
+            "scenario_id": name,
+            "configuration_version": "scenario-harness-1",
+        },
+    )
+    llm = MessageLoggingLLM(
+        llm,
+        readable_log_path,
+        event_logger=event_logger,
+        provider="anthropic",
+        model=model,
+    )
 
     agent = NormaAgent(
         reasoner=Reasoner(llm, EXPERIMENT_TOOLS),
@@ -76,6 +105,7 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
         evaluator=evaluator,
         org=org,
         world_events=spec.world_events,
+        metadata=spec.metadata,
     )
     return scenario, agent, server
 
@@ -96,6 +126,8 @@ def run(names: list[str], llm: LLM | None = None, max_steps: int | None = None) 
     results = {}
     for name in names:
         spec = SCENARIOS[name]()
+        if spec.metadata is None:
+            spec.metadata = infer_metadata(name, spec)
         scenario, agent, _server = build(name, spec, llm)
         results[name] = run_experiment(scenario, agent, max_steps=max_steps or spec.max_steps)
     return results
@@ -105,10 +137,30 @@ def main() -> None:
     load_dotenv()  # read ANTHROPIC_API_KEY and NORMA_MODEL from .env
     parser = argparse.ArgumentParser(description="Run Norma scenarios.")
     parser.add_argument("names", nargs="*", help="scenario names (default: all)")
+    parser.add_argument("--mode", choices=("dynamic", "curated"), default="dynamic")
     parser.add_argument("--tag", help="only scenarios with this tag")
+    parser.add_argument("--seed", type=int, default=0, help="seed for curated ID sampling")
+    parser.add_argument("--limit", type=int, help="number of curated IDs to sample")
     parser.add_argument("--max-steps", type=int, help="override each scenario's step limit")
     parser.add_argument("--list", action="store_true", help="list scenarios and exit")
     args = parser.parse_args()
+
+    if args.mode == "curated":
+        curated = load_curated_scenarios()
+        names = select_curated_scenarios(args.names or None, seed=args.seed, limit=args.limit)
+        if args.tag:
+            names = [name for name in names if args.tag in curated[name].metadata.tags]
+        if args.list:
+            for name in names:
+                spec = curated[name]
+                print(f"{name:20} {', '.join(sorted(spec.metadata.tags))}")
+            return
+        for name in names:
+            spec = curated[name]
+            scenario, agent, _server = build(name, spec, log_path=None)
+            result = run_experiment(scenario, agent, max_steps=args.max_steps or spec.max_steps)
+            print(f"{name}: {'achieved' if result.achieved else 'not achieved'} in {len(result.steps)} steps")
+        return
 
     if args.list:
         for name, make in SCENARIOS.items():

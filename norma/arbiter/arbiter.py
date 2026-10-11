@@ -26,6 +26,11 @@ You have access to two tools:
 - Do not implement the formal normative rules yourself.
 - It does not determine what sanctions will result from a particular violation.
 
+Tool-use limits:
+- Use the Norm Evaluator only for the proposed action under review.
+- After receiving a tool result, stop using tools and return the final decision.
+- Do not call tools repeatedly or evaluate unrelated alternative actions.
+
 The organization is responsible for determining the sanctions that can be applied in case of norm violations.
 The reasoner knows the set of possible sanctions that the organization may impose when a violation is detected. You may consider these possible sanctions when deliberating.
 
@@ -45,7 +50,8 @@ Your decision must be one of:
 - APPROVE: the proposed action should be executed.
 - REJECT: the proposed action should not be executed and the Reasoner should reconsider.
 
-Return:
+After any tool result, return the final structured JSON response immediately. Do not
+make another tool call. Return:
 1. Your decision.
 2. A concise justification.
 3. Feedback for the Reasoner if the proposal is rejected.
@@ -69,6 +75,9 @@ class Arbiter:
         Reasoner's rationale: {proposal.rationale}
         Sanctions: {sanctions_text}"""
 
+        set_role = getattr(self.llm, "set_role", None)
+        if set_role is not None:
+            set_role("arbiter")
         response = self.llm.generate(system_prompt=ARBITER_PROMPT, user_prompt=user_prompt, tools=self.tools, output_schema=ARBITER_OUTPUT_SCHEMA)
 
         if response.structured_output is None:

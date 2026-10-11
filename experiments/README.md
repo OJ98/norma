@@ -5,6 +5,20 @@ builds a scenario, a shared `Substrate`, the normative evaluator, an agent, and
 the MCP tools used during deliberation. The generic runner then executes agent
 steps until the scenario reports success or a step limit is reached.
 
+## Reproducible scenario sample
+
+Run one scenario from each of the three goal/norm relationship types:
+
+```powershell
+python -m experiments.run_sample --seed 7
+```
+
+The default sample has four scenarios, including one of each relationship type. Use `--num-scenarios` to request a
+larger sample, `--output-dir` to choose where independent result and transcript
+files are written, and `--max-steps` to override scenario step limits. Each
+scenario is run sequentially and writes its result immediately, so a later
+failure does not discard earlier results.
+
 ## Experiment 0
 
 Run it from the repository root:
@@ -14,7 +28,28 @@ python -m experiments.run_experiment_0
 ```
 
 The command prints the result, trajectory, and the path to a new readable log
-file under `experiments/logs/`.
+file under `experiments/logs/`. It also writes a machine-readable JSONL event
+log beside it (`.jsonl`).
+
+### Structured event logs
+
+The JSONL log is the source of truth for post-run analysis; the readable
+transcript is retained for debugging. Each line is an event with a stable
+`event_type`, `run_id`, sequence number, and UTC timestamp. Run and scenario
+metadata are attached to lifecycle events. The runner records
+`REASONER_PROPOSED`, `NORM_EVALUATED`, `ARBITER_DECIDED`, `ACTION_EXECUTED`,
+`STATE_CHANGED`, sanction, goal, and completion events without calculating
+paper metrics during execution.
+
+Model and tool telemetry is recorded as `MODEL_CALL_*` and
+`TOOL_CALL_COMPLETED` events, including component (Reasoner or Arbiter),
+available token usage, and latency. Proposal-time norm tool results and
+post-execution norm evaluations have distinct `phase` values. State snapshots
+are stored only on `STATE_CHANGED` events; other events refer to them by
+`state_id`, `state_before_id`, or `state_after_id`. This preserves the
+distinction between proposed, evaluated, approved, and executed actions and
+provides the observations needed to reconstruct success, violations,
+dispositions, progress, efficiency, and overhead metrics after a run.
 
 Experiment 0 starts with `gpu-1` unallocated. The goal is to request the GPU
 and then use it. Success requires both a matching resource request and
@@ -129,6 +164,71 @@ Scenario(
 Keep the success predicate specific to the scenario. It should inspect the
 final state, including any required prerequisite actions, rather than relying
 only on the last proposed action.
+
+### Scenario Metadata And Experimental Tiers
+
+The benchmark can also expose structured metadata for experimental control via
+`ScenarioMetadata`, `ScenarioTier`, and `GoalNormRelationship`:
+
+```python
+ScenarioMetadata(
+    template="gpu-request",
+    tier=ScenarioTier.GOAL_NORM_DELIBERATION,
+    category="hpc",
+    norm_ids=["N0"],
+    goal_norm_relationship=GoalNormRelationship.VIOLATION_ATTRACTIVE,
+    compliance_goal_outcome="delayed",
+    violation_goal_outcome="achieved",
+    violation_sanction="warning",
+    norm_count=1,
+)
+```
+
+Benchmarks may then generate controlled variants with helpers like
+`build_template_instance()` and `generate_scenario_instances()` without changing
+an existing scenario's underlying normative content.
+
+The module also registers a deterministic 259-variant benchmark set in
+`BENCHMARK_SCENARIO_NAMES`. `generate_balanced_scenario_set()` distributes
+those variants as evenly as possible across `ALIGNED`,
+`VIOLATION_ATTRACTIVE`, and `VIOLATION_UNHELPFUL`. The original 33 scenario
+templates remain registered unchanged; generated variants use stable names
+(`benchmark-001-*` through `benchmark-259-*`) and deterministic
+template/state metadata. `ALIGNED` preserves the baseline world,
+`VIOLATION_ATTRACTIVE` compresses the deadline so violating is instrumentally
+useful, and `VIOLATION_UNHELPFUL` shifts world events and expands the deadline
+while making the violation path fail.
+
+### Frozen curated benchmark
+
+The versioned `CURATED_RECORDS` table in
+[`curated_benchmark.py`](./curated_benchmark.py) contains exactly 50 fixed
+scenario records (`cb-001` through `cb-050`). Each record explicitly declares
+its domain, norm IDs, norm cardinality, sanction values, and goal/norm label.
+The loader materializes those records directly from fixed scenario definitions;
+it does not call the dynamic expansion helpers or mutate the definitions.
+
+Run the complete frozen benchmark without expansion:
+
+```powershell
+python -m experiments.run_scenarios --mode curated
+```
+
+List or deterministically sample curated IDs:
+
+```powershell
+python -m experiments.run_scenarios --mode curated --list
+python -m experiments.run_scenarios --mode curated --seed 7 --limit 5
+```
+
+Validate the frozen dataset:
+
+```powershell
+python -m experiments.validate_benchmark --curated
+```
+
+The dynamic registry and its generated benchmark remain available through the
+default `--mode dynamic` path.
 
 Run a scenario with the shared runner:
 
