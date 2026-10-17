@@ -40,7 +40,7 @@ def run_experiment(
             scenario_id=scenario.name,
             goal=scenario.goal,
             applicable_norm_ids=(scenario_metadata.norm_ids if scenario_metadata else []),
-            sanctions=scenario.org.get_possible_sanctions() if scenario.org else scenario.sanctions,
+            sanctions=scenario.sanctions,
             success_condition=(
                 scenario_metadata.success_condition
                 if scenario_metadata and scenario_metadata.success_condition
@@ -95,11 +95,7 @@ def run_experiment(
         state_before_id, state_before = _state_snapshot(agent.substrate.get_state())
         step = agent.step(
             goal=scenario.goal,
-            sanctions=(
-                scenario.org.get_possible_sanctions()
-                if scenario.org is not None
-                else scenario.sanctions
-            ),
+            sanctions=scenario.sanctions,
             arbiter_feedback=arbiter_feedback,
         )
         steps.append(step)

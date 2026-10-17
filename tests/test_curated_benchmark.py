@@ -1,4 +1,4 @@
-from experiments.curated_benchmark import (
+from experiments.scenarios import (
     CURATED_BENCHMARK_VERSION,
     CURATED_RECORDS,
     load_curated_scenarios,

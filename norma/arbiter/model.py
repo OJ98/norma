@@ -9,6 +9,13 @@ ARBITER_OUTPUT_SCHEMA = {
         "rationale": {
             "type": "string",
         },
+        "decision": {
+            "type": "string",
+            "enum": ["APPROVE", "REJECT"],
+        },
+        "feedback": {
+            "type": ["string", "null"],
+        },
     },
     "required": [
         "approved",

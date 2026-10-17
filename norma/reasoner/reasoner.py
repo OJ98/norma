@@ -69,6 +69,8 @@ and `recipient_id` in `action.parameters`.
 Do not execute actions yourself.
 Do not modify the environment yourself.
 Do not invent normative rules.
+
+You are acting on behalf of researcher-1 unless otherwise specified.
 """
 
 class Reasoner:
@@ -106,12 +108,17 @@ class Reasoner:
         raw_type = str(action_data["type"]).strip()
         action_type = normalize_action_type(raw_type)
         actor = action_data.get("actor", action_data.get("principal_id"))
+        parameters = {
+            key: value
+            for key, value in action_data["parameters"].items()
+            if value is not None
+        }
 
         return ReasonerProposal(
             action=Action(
             type=action_type,
                 principal_id=actor,
-                parameters=action_data["parameters"],
+                parameters=parameters,
             ),
             rationale=rationale,
             candidate_actions=output.get("candidate_actions", []),

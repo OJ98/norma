@@ -98,7 +98,7 @@ def test_runner_passes_violations_to_org_and_applies_sanction():
     scenario = Scenario(
         name="Org test",
         goal="Use the resource",
-        sanctions=["legacy-value-that-must-not-be-used"],
+        sanctions=["warning", "expulsion"],
         goal_reached=lambda state: state.resources[0].in_use_by == "p1",
         evaluator=evaluator,
         org=org,
@@ -113,7 +113,8 @@ def test_runner_passes_violations_to_org_and_applies_sanction():
     assert result.sanctions[0].object == "resource-1"
     assert result.sanctions[0].timestamp == 1
     assert all("warning" in prompt for prompt in llm.user_prompts)
-    assert all("legacy-value-that-must-not-be-used" not in prompt for prompt in llm.user_prompts)
+    # The prompt lists the scenario's sanctions, not only those in the org policy
+    assert all("expulsion" in prompt for prompt in llm.user_prompts)
 
 
 def test_runner_executes_world_event_at_its_logical_step():

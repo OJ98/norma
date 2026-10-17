@@ -19,12 +19,12 @@ REASONER_OUTPUT_SCHEMA = {
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "resource_id": {"type": "string"},
-                        "principal_id": {"type": "string"},
-                        "project_id": {"type": "string"},
-                        "message_id": {"type": "string"},
-                        "content": {"type": "string"},
-                        "recipient_id": {"type": "string"},
+                        "resource_id": {"type": ["string", "null"]},
+                        "principal_id": {"type": ["string", "null"]},
+                        "project_id": {"type": ["string", "null"]},
+                        "message_id": {"type": ["string", "null"]},
+                        "content": {"type": ["string", "null"]},
+                        "recipient_id": {"type": ["string", "null"]},
                     },
                     "additionalProperties": False,
                 },
@@ -43,6 +43,26 @@ REASONER_OUTPUT_SCHEMA = {
             "type": "array",
             "items": {
                 "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [action_type.value for action_type in ActionType],
+                    },
+                    "actor": {"type": "string"},
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "resource_id": {"type": ["string", "null"]},
+                            "principal_id": {"type": ["string", "null"]},
+                            "project_id": {"type": ["string", "null"]},
+                            "message_id": {"type": ["string", "null"]},
+                            "content": {"type": ["string", "null"]},
+                            "recipient_id": {"type": ["string", "null"]},
+                        },
+                        "additionalProperties": False,
+                    },
+                    "notes": {"type": "string"},
+                },
                 "additionalProperties": False,
             },
         },

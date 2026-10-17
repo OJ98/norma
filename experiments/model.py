@@ -13,12 +13,6 @@ class ScenarioTier(str, Enum):
     NORM_INTERACTION = "norm-interaction"
 
 
-class GoalNormRelationship(str, Enum):
-    ALIGNED = "aligned"
-    VIOLATION_ATTRACTIVE = "violation-attractive"
-    VIOLATION_UNHELPFUL = "violation-unhelpful"
-
-
 @dataclass
 class ScenarioMetadata:
     scenario_id: str = ""
@@ -29,7 +23,7 @@ class ScenarioMetadata:
     norm_ids: list[str] = field(default_factory=list)
     norm_cardinality: str = ""
     sanction_types: list[str] = field(default_factory=list)
-    goal_norm_relationship: GoalNormRelationship | str = GoalNormRelationship.ALIGNED
+    goal_norm_relationship: str = "aligned"  # aligned, delayed, or conflict
     compliance_goal_outcome: str = "achieved"
     violation_goal_outcome: str = "achieved"
     violation_sanction: str = ""

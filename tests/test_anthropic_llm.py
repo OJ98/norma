@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from norma.llm.anthropic import AnthropicLLM
 
 
@@ -31,3 +33,21 @@ def test_anthropic_llm_uses_current_structured_output_format():
         }
     }
     assert response.structured_output == {"approved": True}
+
+
+def test_anthropic_truncation_error_reports_effective_limit_and_usage():
+    llm = AnthropicLLM.__new__(AnthropicLLM)
+    llm.model = "test-model"
+    llm.max_tokens = 8192
+    llm.client = SimpleNamespace(
+        messages=SimpleNamespace(
+            create=lambda **kwargs: SimpleNamespace(
+                content=[SimpleNamespace(type="text", text='{"approved":')],
+                stop_reason="max_tokens",
+                usage=SimpleNamespace(output_tokens=8192),
+            )
+        )
+    )
+
+    with pytest.raises(RuntimeError, match=r"model=test-model, max_tokens=8192, output_tokens=8192"):
+        llm.generate("system", "user", [], {"type": "object"})

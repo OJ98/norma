@@ -55,6 +55,8 @@ make another tool call. Return:
 1. Your decision.
 2. A concise justification.
 3. Feedback for the Reasoner if the proposal is rejected.
+
+You are acting on behalf of researcher-1 unless otherwise specified.
 """
 
 class Arbiter:

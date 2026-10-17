@@ -1,28 +1,20 @@
 # Commands (run from the repository root):
-#   python -m experiments.run_scenarios --list                       list every scenario with its tags
-#   python -m experiments.run_scenarios                              run all scenarios (21 singles + 12 combinations)
-#   python -m experiments.run_scenarios idle-gpu                     run one scenario
-#   python -m experiments.run_scenarios idle-gpu login-node          run several scenarios
-#   python -m experiments.run_scenarios --tag single                 run every single-norm scenario
-#   python -m experiments.run_scenarios --tag combo                  run every combination
-#   python -m experiments.run_scenarios --tag N12                    run every scenario that uses norm N12 (also: hpc, lab, paper, review)
-#   python -m experiments.run_scenarios idle-gpu --max-steps 4       override the step limit
+#   python -m experiments.run_scenarios --list                  list the 55 curated scenarios with their tags
+#   python -m experiments.run_scenarios                         run every curated scenario
+#   python -m experiments.run_scenarios cb-001                  run one scenario
+#   python -m experiments.run_scenarios cb-001 cb-022           run several scenarios
+#   python -m experiments.run_scenarios --seed 7 --limit 5      run a reproducible random sample
+#   python -m experiments.run_scenarios --tag N12               run every scenario with a tag (also: single, combo, hpc, conflict, ...)
+#   python -m experiments.run_scenarios cb-001 --max-steps 4    override the step limit
 import argparse
 import asyncio
-import os
-import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-if "--mode" in sys.argv:
-    mode_index = sys.argv.index("--mode")
-    if mode_index + 1 < len(sys.argv) and sys.argv[mode_index + 1] == "curated":
-        os.environ["NORMA_CURATED_MODE"] = "1"
-
 from norma.agent import NormaAgent
 from norma.arbiter import Arbiter
-from norma.llm import AnthropicLLM, LLM
+from norma.llm import LLM, configured_provider, create_configured_llm
 from norma.org import OrgSelf
 from norma.reasoner import Reasoner
 from norma.tools.evaluator import NormEvaluator
@@ -30,21 +22,18 @@ from norma.tools.evaluator.instance_store import NormInstanceStore
 from norma.tools.evaluator.pattern_store import NormPatternStore
 from norma.tools.memory import AgentMemory
 from norma.tools.server import create_server
-from substrate import Principal, Substrate
+from substrate import Principal, SanctionType, Substrate
 
 from .message_logger import MessageLoggingLLM, StructuredEventLogger, new_log_path
 from .model import ExperimentResult, Scenario
 from .norms import NORMS
 from .runner import run_experiment
-from .scenarios import SANCTIONS, SCENARIOS, Spec, infer_metadata
-from .curated_benchmark import load_curated_scenarios, select_curated_scenarios
+from .scenarios import SANCTIONS, Spec, load_curated_scenarios, select_curated_scenarios
 from .tools import ARBITER_TOOLS, EXPERIMENT_TOOLS
 
 
-# Turn one Spec into the same (Scenario, agent, server) triple that build_experiment_0 returns
+# Turn one Spec into a (Scenario, agent, server) triple
 def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple[Scenario, NormaAgent, object]:
-    if spec.metadata is None:
-        spec.metadata = infer_metadata(name, spec)
     substrate = Substrate()
     substrate.state.principals.extend(Principal(principal) for principal in spec.principals)
     substrate.state.resources.extend(spec.resources)
@@ -63,22 +52,21 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
     evaluator = NormEvaluator(pattern_store, instance_store, substrate)
     org = OrgSelf(spec.policy or {norm_name: SANCTIONS[norm_name] for norm_name, *_ in spec.norms})
     server = create_server(AgentMemory(), evaluator)
+    provider, model = configured_provider()
 
     if llm is None:
-        llm = AnthropicLLM(
-            model=os.getenv("NORMA_MODEL", "claude-haiku-4-5-20251001"),
+        llm = create_configured_llm(
             tool_executor=lambda tool, arguments: asyncio.run(
                 server._tool_manager.call_tool(tool, arguments, convert_result=True)
             ),
         )
     readable_log_path = log_path or new_log_path(name)
-    model = os.getenv("NORMA_MODEL", "claude-haiku-4-5-20251001")
     event_logger = StructuredEventLogger(
         Path(readable_log_path).with_suffix(".jsonl"),
         base={
             "experiment": name,
             "condition": getattr(spec.metadata, "goal_norm_relationship", "default"),
-            "provider": "anthropic",
+            "provider": provider,
             "model": model,
             "scenario_id": name,
             "configuration_version": "scenario-harness-1",
@@ -88,7 +76,7 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
         llm,
         readable_log_path,
         event_logger=event_logger,
-        provider="anthropic",
+        provider=provider,
         model=model,
     )
 
@@ -100,7 +88,8 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
     scenario = Scenario(
         name=name,
         goal=spec.goal,
-        sanctions=org.get_possible_sanctions(),
+        # The agent sees every sanction the org can impose, not only those tied to this scenario's norms
+        sanctions=[sanction.value for sanction in SanctionType],
         goal_reached=spec.goal_reached,
         evaluator=evaluator,
         org=org,
@@ -110,64 +99,53 @@ def build(name: str, spec: Spec, llm: LLM | None = None, log_path=None) -> tuple
     return scenario, agent, server
 
 
-# The given names, else every scenario; then keep only those with `tag`
-def select(names: list[str] | None = None, tag: str | None = None) -> list[str]:
-    unknown = set(names or []) - SCENARIOS.keys()
-    if unknown:
-        raise SystemExit(f"Unknown scenario(s): {', '.join(sorted(unknown))}. Use --list.")
-    chosen = [name for name in (names or SCENARIOS) if tag is None or tag in SCENARIOS[name]().tags]
-    if tag and not chosen:
-        raise SystemExit(f"No scenario has the tag {tag!r} (tags are case-sensitive). Use --list.")
+# The given curated IDs (else all, or a seeded sample of `limit`); then keep only those with `tag`
+def select(specs: dict[str, Spec], names: list[str] | None = None, tag: str | None = None, seed: int = 0,
+           limit: int | None = None) -> list[str]:
+    try:
+        chosen = select_curated_scenarios(names or None, seed=seed, limit=limit)
+    except ValueError as error:
+        raise SystemExit(f"{error}. Use --list.")
+    if tag:
+        chosen = [name for name in chosen if tag in specs[name].metadata.tags]
+        if not chosen:
+            raise SystemExit(f"No scenario has the tag {tag!r} (tags are case-sensitive). Use --list.")
     return chosen
 
 
-# Run the selected scenarios and return their results by name
-def run(names: list[str], llm: LLM | None = None, max_steps: int | None = None) -> dict[str, ExperimentResult]:
+# Run the selected scenarios and return their results by ID. Load the specs
+# once per run: seed message IDs come from a global counter, so reloading
+# would change the IDs the agent sees.
+def run(names: list[str], specs: dict[str, Spec] | None = None, llm: LLM | None = None,
+        max_steps: int | None = None) -> dict[str, ExperimentResult]:
+    specs = specs or load_curated_scenarios()
     results = {}
     for name in names:
-        spec = SCENARIOS[name]()
-        if spec.metadata is None:
-            spec.metadata = infer_metadata(name, spec)
+        spec = specs[name]
         scenario, agent, _server = build(name, spec, llm)
         results[name] = run_experiment(scenario, agent, max_steps=max_steps or spec.max_steps)
     return results
 
 
 def main() -> None:
-    load_dotenv()  # read ANTHROPIC_API_KEY and NORMA_MODEL from .env
-    parser = argparse.ArgumentParser(description="Run Norma scenarios.")
-    parser.add_argument("names", nargs="*", help="scenario names (default: all)")
-    parser.add_argument("--mode", choices=("dynamic", "curated"), default="dynamic")
+    load_dotenv()  # read provider API keys and NORMA_MODEL from .env
+    parser = argparse.ArgumentParser(description="Run the curated Norma benchmark.")
+    parser.add_argument("names", nargs="*", help="curated scenario IDs such as cb-001 (default: all)")
     parser.add_argument("--tag", help="only scenarios with this tag")
-    parser.add_argument("--seed", type=int, default=0, help="seed for curated ID sampling")
-    parser.add_argument("--limit", type=int, help="number of curated IDs to sample")
+    parser.add_argument("--seed", type=int, default=0, help="seed for --limit sampling")
+    parser.add_argument("--limit", type=int, help="number of scenario IDs to sample")
     parser.add_argument("--max-steps", type=int, help="override each scenario's step limit")
     parser.add_argument("--list", action="store_true", help="list scenarios and exit")
     args = parser.parse_args()
 
-    if args.mode == "curated":
-        curated = load_curated_scenarios()
-        names = select_curated_scenarios(args.names or None, seed=args.seed, limit=args.limit)
-        if args.tag:
-            names = [name for name in names if args.tag in curated[name].metadata.tags]
-        if args.list:
-            for name in names:
-                spec = curated[name]
-                print(f"{name:20} {', '.join(sorted(spec.metadata.tags))}")
-            return
-        for name in names:
-            spec = curated[name]
-            scenario, agent, _server = build(name, spec, log_path=None)
-            result = run_experiment(scenario, agent, max_steps=args.max_steps or spec.max_steps)
-            print(f"{name}: {'achieved' if result.achieved else 'not achieved'} in {len(result.steps)} steps")
-        return
-
+    specs = load_curated_scenarios()
+    names = select(specs, args.names, args.tag, seed=args.seed, limit=args.limit)
     if args.list:
-        for name, make in SCENARIOS.items():
-            print(f"{name:20} {', '.join(sorted(make().tags))}")
+        for name in names:
+            print(f"{name:10} {', '.join(specs[name].metadata.tags)}")
         return
 
-    for name, result in run(select(args.names, args.tag), max_steps=args.max_steps).items():
+    for name, result in run(names, specs, max_steps=args.max_steps).items():
         print(f"{name}: {'achieved' if result.achieved else 'not achieved'} in {len(result.steps)} steps")
         for index, step in enumerate(result.steps, start=1):
             action = step.proposal.action

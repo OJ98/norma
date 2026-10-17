@@ -92,7 +92,14 @@ class AnthropicLLM(LLM):
             if response.stop_reason == "refusal":
                 raise RuntimeError("Anthropic refused to provide structured output.")
             if response.stop_reason == "max_tokens":
-                raise RuntimeError("Warning: Anthropic API response was truncated due to max token limit. Structured output may be incomplete.")
+                usage = getattr(response, "usage", None)
+                output_tokens = getattr(usage, "output_tokens", "unavailable")
+                raise RuntimeError(
+                    "Anthropic API response was truncated at the configured output limit: "
+                    f"model={self.model}, max_tokens={self.max_tokens}, output_tokens={output_tokens}. "
+                    "Set NORMA_MAX_TOKENS in the process environment (or in the loaded .env file) "
+                    "to a higher supported value."
+                )
             if content is None:
                 raise RuntimeError(
                     "No text content returned from Anthropic API, but output_schema was provided. "
